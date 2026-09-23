@@ -1,0 +1,94 @@
+# Configuracion de herramientas. Las dependencias viven en requirements.txt
+# para que Docker cachee la capa de instalacion.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "ASYNC", "S"]
+ignore = ["B008"]  # Depends() en argumentos por defecto es el idioma de FastAPI
+
+[tool.ruff.lint.per-file-ignores]
+# assert es lo normal en pytest; S105-S107 saltan con cualquier literal que
+# contenga "password" o "token", y en los tests eso son datos de prueba.
+"tests/*" = ["S101", "S105", "S106", "S107"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = []
+ignore_missing_imports = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+exclude = "alembic/versions"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "-q"
+
+# ─── Reglas de arquitectura verificadas en CI ─────────────────────────────
+# Sustituyen a la buena voluntad: si alguien rompe la regla de dependencia,
+# el pipeline falla.
+[tool.importlinter]
+root_package = "app"
+# Hace falta para poder prohibir imports de paquetes externos (FastAPI, SQLAlchemy...).
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Las capas de cada modulo respetan la regla de dependencia"
+type = "layers"
+# Entre parentesis = capa opcional: un modulo sin reglas propias (auth) no
+# tiene domain/, y eso es una decision, no un olvido (ver ADR 0001).
+layers = ["interfaces", "(infrastructure)", "application", "(domain)"]
+containers = ["app.modules.users", "app.modules.auth", "app.modules.memories"]
+exhaustive = false
+
+[[tool.importlinter.contracts]]
+name = "El dominio no conoce frameworks ni infraestructura"
+type = "forbidden"
+source_modules = ["app.modules.users.domain", "app.modules.memories.domain"]
+forbidden_modules = [
+    "fastapi",
+    "sqlalchemy",
+    "pydantic",
+    "redis",
+    "boto3",
+    "app.core",
+    "app.config",
+]
+
+[[tool.importlinter.contracts]]
+name = "La aplicacion no conoce el framework web ni el ORM"
+type = "forbidden"
+source_modules = [
+    "app.modules.users.application",
+    "app.modules.auth.application",
+    "app.modules.memories.application",
+]
+forbidden_modules = ["fastapi", "sqlalchemy", "redis", "boto3"]
+
+[[tool.importlinter.contracts]]
+# El dominio y los casos de uso de cualquier modulo trabajan contra puertos, no
+# contra implementaciones: ni las suyas ni, sobre todo, las de otro modulo.
+# La capa interfaces si puede cablear la composicion de otro modulo (su
+# dependencies.py): ese es su trabajo, y es una convencion del equipo.
+name = "El dominio y la aplicacion no conocen ninguna infraestructura"
+type = "forbidden"
+source_modules = [
+    "app.modules.users.domain",
+    "app.modules.users.application",
+    "app.modules.auth.application",
+    "app.modules.memories.domain",
+    "app.modules.memories.application",
+]
+forbidden_modules = [
+    "app.modules.users.infrastructure",
+    "app.modules.auth.infrastructure",
+    "app.modules.memories.infrastructure",
+]

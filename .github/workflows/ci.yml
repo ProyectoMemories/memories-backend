@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  calidad:
+    name: Formato, tipos y reglas de arquitectura
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+      - name: Ruff (lint)
+        run: ruff check .
+      - name: Ruff (formato)
+        run: ruff format --check .
+      - name: Mypy
+        run: mypy app
+      - name: Reglas de dependencia entre capas
+        # Falla si el dominio importa el ORM, si la aplicacion importa FastAPI
+        # o si un modulo toca la infraestructura de otro.
+        run: lint-imports
+        env:
+          DATABASE_URL: postgresql+asyncpg://memories:memories@localhost:5432/memories
+          JWT_SECRET_KEY: clave-de-ci
+
+  pruebas:
+    name: Pruebas
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: memories
+          POSTGRES_PASSWORD: memories
+          POSTGRES_DB: memories
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U memories"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://memories:memories@localhost:5432/memories
+      JWT_SECRET_KEY: clave-de-ci
+      CACHE_PROVIDER: memory
+      STORAGE_PROVIDER: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+      - name: Migraciones sobre una base limpia
+        run: alembic upgrade head
+      - name: Los modelos y las migraciones no divergen
+        # Si alguien cambia un modelo y no escribe la migracion, aqui se ve.
+        run: alembic check
+      - name: Pytest
+        run: pytest
+
+  imagen:
+    name: La imagen de produccion se construye
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
