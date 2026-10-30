@@ -2,198 +2,221 @@
 
 ## Rol
 
-Actuas como desarrollador del equipo de Memories (Joey Flores, Victor Avalos,
-Victor Vergara). Sigues **Spec-Driven Development**: primero el spec, despues el
-codigo. Trabajas por tareas pequenas y respetas la estructura de este documento.
+Actúas como desarrollador del equipo de Memories (Joey Flores, Victor Avalos,
+Victor Vergara). Sigues **Spec-Driven Development**: primero el spec, después el
+código. Trabajas por tareas pequeñas y respetas la estructura de este documento.
 
-Este repositorio es **solo el backend**. La aplicacion Flutter vive en
+Este repositorio es **solo el backend**. La app Flutter (Android y web) vive en
 `memories-frontend`, con su propio CLAUDE.md.
 
 ---
 
-## 1. Que es Memories
+## 1. Fuente de verdad
+
+Producto, decisiones, reglas de negocio, requisitos y arquitectura viven en
+**Google Drive**, carpeta "Proyecto Recuerdos" (D14, D55). En este repositorio
+solo hay README técnico, este CLAUDE.md y `specs/`.
+
+| Qué | Dónde (Drive) |
+|---|---|
+| Decisiones del equipo (D1, D2…) | Context Proyecto para Claude / 01-decisiones |
+| Arquitectura | Context Proyecto para Claude / 04-arquitectura |
+| Reglas de negocio (RN-xx) | Context Proyecto para Claude / 05-reglas-de-negocio |
+| Requisitos (RF-xx, RNF-xx) | Lista de requisitos |
+| Modelo físico vigente | memories-physical-v1.4.sql |
+
+- **No copies esos documentos al repositorio.** Un spec cita los IDs (RF-01,
+  RN-67, D56) en lugar de repetir su texto.
+- Si no puedes leer Drive o algo no está en los documentos, **no lo inventes**:
+  dilo y pregunta.
+- Si una tarea contradice una decisión o una regla registrada, avisa antes de
+  seguir.
+
+## 2. Qué es Memories
 
 Un espacio privado para guardar momentos importantes con su contexto y volver a
-ellos con el tiempo. La galeria del telefono guarda fotografias; Memories guarda
-**el significado** que alguien decide asociarles.
+ellos con el tiempo. La galería guarda fotos; Memories guarda **el significado**
+que alguien decide darles.
 
-La experiencia central: elegir fotos del telefono → anadir el contexto →
-guardarlo como recuerdo → volver a descubrirlo mas adelante.
+- El **álbum** guarda fotos (con fecha y lugar) y descripciones. Tiene un dueño
+  y puede compartirse con editores y lectores (D18).
+- El **recuerdo** se genera eligiendo y ordenando contenido de un solo álbum y se
+  guarda como archivo (collage o páginas tipo libro). Es **inmutable**: solo se
+  borra completo (D19, D33, D34).
 
-Resumen completo en [docs/product/prd-resumen.md](docs/product/prd-resumen.md).
-Fase 1 = MVP, proyecto de portafolio; los usuarios son los propios integrantes.
+**Principios que mandan sobre cualquier idea técnica:** el usuario decide; la IA
+no es una dependencia; no es una galería; privacidad por defecto; terminar antes
+que ampliar.
 
-**Cinco principios que mandan sobre cualquier idea tecnica:**
-
-1. **El usuario decide.** Memories no genera recuerdos por su cuenta.
-2. **La IA no es una dependencia.** El flujo principal funciona sin IA. No se
-   anade ninguna llamada a modelos.
-3. **No es una galeria.** Las fotos son el soporte; el producto es el contexto.
-4. **Privacidad por defecto.** Nada es publico. Compartir es siempre una decision
-   explicita del dueno.
-5. **Terminar antes que ampliar.** Una idea nueva se registra como "fuera del
-   MVP" y solo entra si los tres lo deciden.
-
-**Fuera del alcance (no lo construyas aunque parezca facil):** IA de cualquier
-tipo, integraciones con Google Photos o iCloud, video y audio, funciones sociales
-(amigos, likes, comentarios, perfiles publicos) y todo lo comercial.
-
-**El album compartido no esta implementado a proposito.** El PRD deja abierto que
-es un album (pendiente P17). Antes de tocarlo, lee `specs/albums/requirements.md`
-y espera la decision del equipo.
+**Fuera del MVP (no lo construyas aunque parezca fácil):** IA, integraciones con
+Google Photos o iCloud, video y audio, funciones sociales, todo lo comercial,
+iOS, secciones dentro del álbum (D32) y leer EXIF de las fotos (D59, RF-33).
+Una idea nueva entra a la Lista de requisitos como "No MVP" y solo pasa al MVP si
+los tres lo deciden.
 
 ---
 
-## 2. Stack
+## 3. Stack
 
-Python 3.12 · FastAPI · SQLAlchemy 2 async (asyncpg) · Alembic · Pydantic v2 ·
-PostgreSQL 16 · Redis · MinIO/S3 · structlog · pytest · Docker Compose ·
-GitHub Actions.
+| Capa | Tecnología |
+|---|---|
+| Lenguaje | Python 3.12 (D54) |
+| API | FastAPI |
+| Base de datos | PostgreSQL 18 (D41) |
+| ORM y migraciones | SQLAlchemy 2 + Alembic |
+| Ids | UUIDv7 generados en el backend con una librería externa (D41, D54) |
+| Sesiones | JWT de acceso de 15 min + token de renovación de 30 días rotado y guardado como hash en `user_session` (D56, RN-67) |
+| Contraseñas | Hash con algoritmo intercambiable (RNF-08) |
+| Fotos | Almacenamiento compatible con S3; MinIO en local, con versión fijada (D46) |
+| Entorno local | Docker Compose: PostgreSQL, API y MinIO |
+| Calidad | pytest, ruff, GitHub Actions (D48) |
 
-## 3. Comandos
+**No hay Redis** en este proyecto: las sesiones viven en PostgreSQL (D56).
 
-```bash
-docker compose up -d --build              # todo el entorno local
-docker compose logs -f api                # ver la API
-docker compose exec api python scripts/seed.py   # crear el superusuario
-docker compose down                       # parar (con -v borra los datos)
+## 4. Comandos
 
-pytest                                    # pruebas (no necesitan Redis ni MinIO)
-ruff check . && ruff format .             # estilo
-mypy app                                  # tipos
-lint-imports                              # reglas de arquitectura
-alembic revision --autogenerate -m "..."  # nueva migracion
-alembic upgrade head                      # aplicarla
+Se completan a medida que entran los PR de `chore/docker-compose`,
+`feat/app-skeleton` y `feat/db-initial-migration`. No inventes comandos que el
+repositorio todavía no tiene.
+
+## 5. Estructura (respétala)
+
 ```
-
-## 4. Estructura (respetala)
-
-```
-CLAUDE.md / CLAUDE.local.md    memoria del proyecto / personal (local, en .gitignore)
-.github/workflows/             CI
-docker-compose.yml             db + redis + minio + api
-.env.example                   plantilla de variables (el .env NUNCA se sube)
-docs/                          producto y arquitectura
-docs/adr/                      decisiones de arquitectura
-specs/<feature>/               requirements.md, design.md, tasks.md
-alembic/versions/              migraciones
-tests/                         espejo de app/ (unit/ e integration/)
+CLAUDE.md / CLAUDE.local.md   memoria del proyecto / personal (local, en .gitignore)
+README.md                     cómo levantar y probar el proyecto (D55)
+.github/                      CI y plantilla de PR
+specs/<feature>/              requirements.md, design.md, tasks.md
+alembic/versions/             migraciones
+tests/                        espejo de app/
 app/
-├── main.py · api.py           app FastAPI y montaje de routers
-├── config/                    settings.py, database.py
-├── core/                      security/ (hashing, tokens), storage/, cache/,
-│                              middleware/, rate_limit.py, logging.py
-├── shared/                    errors, roles, pagination, db/ (Base, mixins, registry)
-└── modules/<modulo>/
-    ├── domain/                entidades, objetos de valor, errores, PUERTOS
-    ├── application/           casos de uso (uno por archivo)
-    ├── infrastructure/        models/ (una tabla por archivo), repositories/, mappers/
-    └── interfaces/http/       schemas/, router.py, dependencies.py
+├── main.py                   app FastAPI y montaje de routers
+├── config.py                 configuración por variables de entorno
+├── storage/                  puerto de almacenamiento + adaptador S3
+└── modules/<modulo>/         auth, users, albums, memories
+    ├── router.py             HTTP: valida entrada, llama al servicio
+    ├── service.py            reglas de negocio, sin FastAPI
+    ├── repository.py         único que toca la base de datos
+    ├── models.py             modelos SQLAlchemy
+    └── schemas.py            esquemas Pydantic de entrada y salida
 ```
 
 - No crees carpetas ni archivos de primer nivel sin preguntar.
-- Nunca subas `.env`, `CLAUDE.local.md` ni `settings.local.json`.
-- **Nombres de archivos, carpetas, clases y variables en ingles y sin tildes.**
-  Comentarios, documentacion, commits y mensajes para la persona, en espanol.
+- Nunca subas `.env`, `CLAUDE.local.md` ni `.claude/settings.local.json`.
+- Nombres de archivos, carpetas, tablas, clases y variables **en inglés**, sin
+  tildes (D31). Comentarios, specs, commits y mensajes para la persona, **en
+  español**.
 
 ---
 
-## 5. Flujo obligatorio: Spec-Driven Development
+## 6. Flujo obligatorio: Spec-Driven Development
 
-1. **Sin spec no hay codigo.** Antes de implementar, comprueba que existe
-   `specs/<feature>/`. Si no existe, creala y **detente** para que la revisemos.
-2. **requirements.md**: historias de usuario y criterios de aceptacion
-   verificables (Dado / Cuando / Entonces). Enlaza la capacidad del PRD (CP-0x).
-3. **design.md**: contratos de la API, modelo de datos, capas que se tocan,
-   riesgos. Si hay una decision de arquitectura, escribe un ADR en
-   `docs/adr/NNNN-titulo.md`.
-4. **tasks.md**: tareas pequenas, ordenadas por dependencia, cada una con su
+1. **Sin spec no hay código.** Antes de implementar, comprueba que existe
+   `specs/<feature>/`. Si no existe, créala y **detente** para que la revisemos.
+2. **requirements.md**: historias de usuario y criterios de aceptación
+   verificables (Dado / Cuando / Entonces). Cita los RF, RN y D de Drive.
+3. **design.md**: contratos de la API, tablas que usa (del modelo v1.4), capas
+   que se tocan y riesgos. Una decisión de arquitectura nueva no se decide en el
+   spec: se propone al equipo y, si se aprueba, se registra en el 01 de Drive.
+4. **tasks.md**: tareas pequeñas, ordenadas por dependencia, cada una con su
    test. Se marcan `[x]` al terminar.
-5. Implementa **una tarea a la vez**. Antes de cerrarla: `pytest`, `ruff`, `mypy`
-   y `lint-imports`.
-6. Si la implementacion se desvia del spec, **actualiza el spec primero** y
+5. Implementa **una tarea a la vez**. Antes de cerrarla: tests y lint en verde.
+6. Si la implementación se desvía del spec, **actualiza el spec primero** y
    avisa.
 
----
+## 7. Reglas de arquitectura
 
-## 6. Reglas de arquitectura
+Monolito modular (D13): cada módulo sigue `router → service → repository`.
 
-La direccion de los imports es `interfaces → infrastructure → application →
-domain`, y no al reves. Tres reglas que **verifica el CI** con `lint-imports`:
-
-1. El dominio no importa FastAPI, SQLAlchemy, Pydantic, Redis, boto3, `app.core`
-   ni `app.config`. Python puro.
-2. La aplicacion no importa el framework web ni el ORM. Recibe **puertos**
-   (Protocol), nunca clases concretas.
-3. **Un modulo no toca la infraestructura de otro.** Si necesita algo de otro
-   modulo, usa su dominio (puertos, entidades) o su `dependencies.py`.
-
-Ademas:
-
-- **Si un modulo no tiene reglas propias, no tiene `domain/`.** `auth` es el
-  ejemplo. No se crean carpetas vacias por simetria (eso paso en CRIS: doce
-  modulos con `domain/` vacio).
-- **Un archivo por tabla, uno por entidad, uno por caso de uso.** En CRIS un solo
-  `use_cases.py` llego a 8.000 lineas: no repetirlo es una decision explicita
-  ([ADR 0002](docs/adr/0002-un-archivo-por-tabla-y-por-caso-de-uso.md)).
-- **Toda la composicion de dependencias vive en `interfaces/http/dependencies.py`**,
-  nunca dentro del router.
-- **La logica de negocio va en el dominio o en el caso de uso**, nunca en el
-  router ni en el repositorio.
-- Un modelo nuevo se registra en `app/shared/db/registry.py`.
+- El **servicio** tiene las reglas de negocio y no importa FastAPI.
+- Solo el **repositorio** accede a la base de datos.
+- Un módulo **no usa el repositorio de otro**: si necesita algo, llama a su
+  servicio.
+- La lógica de negocio nunca va en el router ni en el repositorio.
 - SOLID con criterio: nada de abstracciones sin un segundo caso de uso real.
-- Funciones pequenas, nombres explicitos, sin codigo muerto ni comentarios que
-  repiten lo que dice el codigo. Un comentario explica **por que**, no **que**.
-- Errores explicitos: nada de `except` vacios.
-
-## 7. Privacidad y seguridad (DevSecOps)
-
-- **Toda consulta filtra por el dueno de los datos**, y el `owner_id` esta en la
-  firma del puerto para que no se pueda olvidar.
-- **Toda funcionalidad que lea datos de una persona lleva un test que intenta
-  leerlos desde otra cuenta y exige que falle** (`tests/integration/test_privacy.py`).
-- Pedir un recurso ajeno responde **404, no 403**.
-- Nunca hardcodees secretos: variables de entorno y `.env.example` al dia.
-- Valida todo lo que entra: las imagenes se comprueban por firma binaria, no por
-  el content-type que declara el cliente.
-- Las contrasenas nunca se registran en logs ni se devuelven en una respuesta.
-- Antes de anadir una dependencia, justificala y comprueba que este mantenida.
-- No ejecutes comandos destructivos (`rm -rf`, `git push --force`,
-  `docker compose down -v`, migraciones en produccion) sin confirmacion.
+- Funciones pequeñas, nombres explícitos, sin código muerto. Un comentario
+  explica **por qué**, no **qué**.
+- Errores explícitos: nada de `except` vacíos.
 
 ## 8. Base de datos
 
-- **Todo cambio de esquema es una migracion de Alembic.** Nunca SQL suelto.
-- Aqui `--autogenerate` **si** sirve: el esquema nace de los modelos (al reves
-  que en CRIS). Revisa siempre lo que genera antes de commitear.
-- `alembic check` en CI detecta un modelo cambiado sin migracion.
-- Clave primaria UUID en todas las tablas.
-- Las tablas van al esquema predeterminado de la base. `DB_SCHEMA` solo se usa
-  en los tests (`memories_test`), para aislarlos sin otra base de datos.
+- El esquema sale de **memories-physical-v1.4.sql** (D53, D56). La migración
+  `0001` se escribe **a mano** desde ese archivo: autogenerate no reproduce los
+  triggers, `ON DELETE SET NULL (columna)` ni todos los CHECK.
+- Después de la `0001`, **todo cambio de esquema es una migración nueva** de
+  Alembic, revisada a mano. Nunca SQL suelto contra la base.
+- Ids UUIDv7 generados en el backend, **sin DEFAULT** en la columna (D41).
+- Todo timestamp es `timestamptz` en UTC.
+- Nombres de restricciones: `pk_`, `fk_`, `uq_`, `ck_`, `ix_` + tabla + detalle,
+  igual que en el modelo físico.
+- Las reglas que la base **no** impone (listadas al final del `.sql`) viven en
+  el servicio y cada una tiene su test: edad mínima, 0 a 10 fotos por recuerdo,
+  recuerdos sin endpoints de edición, vencimientos de invitaciones y enlaces,
+  aviso anual y rotación de sesiones.
 
-## 9. Pruebas
+## 9. Sesiones (D56, RN-67)
 
-- Toda logica nueva lleva test. Un bug arreglado lleva un test que lo reproduce.
-- **Unitarias** (`tests/unit/`): dominio y servicios puros, sin base de datos.
-- **Integracion** (`tests/integration/`): la API completa contra Postgres real,
-  con cache en memoria y almacenamiento en disco. No hacen falta Redis ni MinIO.
-- Los tests usan el esquema `memories_test`: no tocan tus datos de desarrollo.
+- Token de acceso: JWT de 15 minutos, **no se guarda**.
+- Token de renovación: `<id de sesión>.<secreto>`, dura 30 días y **se rota en
+  cada uso**. En `user_session` solo se guarda el hash.
+- Si llega un id de sesión válido con un secreto que no coincide, es un token
+  reusado: **se revoca esa sesión**.
+- Cerrar sesión revoca la sesión de ese dispositivo; cambiar la contraseña
+  revoca todas.
+- En cada petición se revisa que la cuenta siga activa.
+- Web: el token de renovación va en una cookie httpOnly. Android: en el
+  almacenamiento seguro del dispositivo.
+- **Protección CSRF en web.** La cookie se envía sola, así que hay que impedir
+  que otro sitio la use:
+  - la cookie es `HttpOnly`, `Secure` y `SameSite` y solo se envía a la ruta de
+    renovación;
+  - el endpoint que la usa revisa la cabecera `Origin` y rechaza cualquier
+    origen que no sea el de la app web;
+  - CORS solo permite el dominio de la app web, configurado por variable de
+    entorno; nunca `*`.
 
-## 10. Git
+## 10. Privacidad y seguridad
 
-- Ramas: `feat/…`, `fix/…`, `chore/…`, `docs/…`. **Nunca commits directos a
-  `main`.**
-- Commits pequenos con Conventional Commits, en espanol:
-  `feat(memories): vista calendario por mes`.
-- Un commit = un cambio logico, con los tests en verde.
-- Todo entra por Pull Request y lo revisa otro integrante.
+- **Toda consulta filtra por el dueño o por la membresía del álbum**, y tiene un
+  test que intenta leer datos desde otra cuenta y exige que falle (04, reglas
+  transversales).
+- Los permisos siguen la matriz de RN-05 (dueño, editor, lector) y viven en la
+  API, nunca en el cliente (RNF-01, RNF-02).
+- **Un recurso ajeno responde 404, no 403** (D60): un 403 confirmaría que el
+  álbum, la foto o el recuerdo existe.
+- El superusuario no ve fotos, recuerdos ni álbumes de nadie (RN-02).
+- Fotos: JPEG, PNG o WebP de hasta 5 MB; el tipo se valida por el contenido del
+  archivo, no por lo que declara el cliente (RN-37 a RN-39).
+- Nunca hardcodees secretos: variables de entorno y `.env.example` al día.
+- Las contraseñas y los tokens nunca se registran en logs ni se devuelven.
+- Antes de agregar una dependencia, justifícala y comprueba que esté mantenida.
+- No ejecutes comandos destructivos (`rm -rf`, `git push --force`,
+  `docker compose down -v`, migraciones en producción) sin confirmación.
 
-## 11. Como trabajar conmigo
+## 11. Pruebas
 
-- Responde en espanol, concreto y breve.
-- Si algo es ambiguo, **pregunta antes de asumir**. Si el PRD lo deja abierto,
-  registra el supuesto en
-  [ADR 0008](docs/adr/0008-supuestos-sobre-pendientes-del-prd.md).
-- Dame feedback honesto: si mi enfoque esta mal o desactualizado, dilo y propon
+- pytest (D48). Toda lógica nueva lleva test; un bug arreglado lleva un test que
+  lo reproduce.
+- Unitarias para los servicios; de integración contra PostgreSQL 18 real para
+  la API y las migraciones.
+
+## 12. Git
+
+Flujo de D61:
+
+- Cada integrante trabaja en **su propia rama**: `feat/…`, `fix/…`, `chore/…`,
+  `docs/…`. **Nunca commits directos a `main`** (está protegido).
+- Todo entra a `main` por **Pull Request** desde esa rama. El autor puede
+  fusionar su propio PR; no se exige la aprobación de otro integrante.
+- Cuando exista el CI, el PR debe pasarlo antes de fusionarse.
+- Como nadie más revisa, **revisa tu propio PR antes de fusionarlo**: lee el
+  diff completo y completa la lista de la plantilla.
+- Commits pequeños con Conventional Commits, en español:
+  `feat(auth): rotar el token de renovación`. Un commit = un cambio lógico.
+
+## 13. Cómo trabajar conmigo
+
+- Responde en español, concreto y breve.
+- Si algo es ambiguo, **pregunta antes de asumir**.
+- Dame feedback honesto: si mi enfoque está mal o desactualizado, dilo y propón
   una alternativa.
-- Al terminar una tarea, resume en 2 o 3 lineas que cambio y que falta.
+- Al terminar una tarea, resume en 2 o 3 líneas qué cambió y qué falta.
