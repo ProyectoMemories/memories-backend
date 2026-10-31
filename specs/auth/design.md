@@ -1,59 +1,122 @@
-# Spec: cuentas y sesiones — Diseno
+# Spec: auth — Diseño
 
-## Contratos de la API
+Estado: **aprobado**. Los puntos marcados [PROPUESTA] no están decididos en
+Drive; se pueden ajustar al implementar, avisando en el PR.
 
-| Metodo | Ruta | Cuerpo | Respuesta |
+## 1. Tablas (memories-physical-v1.4.sql)
+
+| Tabla | Uso |
+|---|---|
+| `app_user` | Cuenta. `status` (`account_status`), `email_verified_at`, `password_changed_at`, `deletion_requested_at`, `is_superuser`. |
+| `privacy_consent` | Una fila por versión de política aceptada (RN-50). |
+| `user_session` | Una fila por dispositivo con sesión: `refresh_token_hash`, `platform` (`android` o `web`), `device_name`, `expires_at`, `last_used_at`, `revoked_at`. |
+
+No hay tablas para tokens de verificación ni de recuperación: son **tokens
+firmados** de vida corta (RN-19), igual que en el modelo físico.
+
+## 2. Endpoints
+
+[PROPUESTA] Prefijo `/api/v1` y nombres en inglés. Errores con un cuerpo común
+`{ "code": "...", "message": "..." }`.
+
+| Método y ruta | Qué hace | HU |
+|---|---|---|
+| `POST /auth/register` | Crea la cuenta `unverified`, guarda el consentimiento y envía el correo | HU-01 |
+| `POST /auth/verify-email` | Recibe el token del enlace y activa la cuenta | HU-02 |
+| `POST /auth/verify-email/resend` | Reenvía el enlace; responde igual exista o no la cuenta | HU-02 |
+| `POST /auth/login` | Credenciales → tokens + sesión nueva | HU-03 |
+| `POST /auth/refresh` | Rota el token de renovación | HU-04 |
+| `POST /auth/logout` | Revoca la sesión actual | HU-05 |
+| `POST /auth/password/forgot` | Envía el enlace de recuperación | HU-06 |
+| `POST /auth/password/reset` | Token + contraseña nueva; revoca todas las sesiones | HU-06 |
+| `POST /auth/password/change` | Contraseña actual + nueva; revoca todas las sesiones | HU-07 |
+
+### Cómo viaja el token de renovación (D56)
+
+- **Android:** en el cuerpo de la respuesta de `login` y `refresh`; el cliente
+  lo guarda en el almacenamiento seguro y lo manda en el cuerpo de `refresh` y
+  `logout`.
+- **Web:** en una cookie `HttpOnly`, `Secure`, `SameSite` con `Path` limitado a
+  `/api/v1/auth`. No aparece en el cuerpo de la respuesta.
+- La plataforma la declara el cliente al iniciar sesión (`platform`, más un
+  `device_name` opcional) y queda guardada en la sesión.
+
+### Protección CSRF en web
+
+- `refresh` y `logout` en web revisan la cabecera `Origin` y la comparan con el
+  dominio de la app web (variable de entorno). Si no coincide, se rechaza.
+- CORS solo permite ese dominio, con credenciales. Nunca `*`.
+- [PROPUESTA] `SameSite=Strict` si la API y la app web comparten el mismo sitio
+  registrable; `Lax` si no. Se decide al definir los dominios de despliegue.
+
+## 3. Reglas de sesión (D56, RN-67)
+
+- **Token de acceso:** JWT de 15 minutos con `sub` (id de usuario) y `sid`
+  (id de sesión). No se guarda.
+- **Token de renovación:** `<id de sesión>.<secreto aleatorio>`. Se guarda solo
+  el hash del secreto.
+- **Rotación:** en cada `refresh` se genera un secreto nuevo, se reemplaza el
+  hash, se actualiza `last_used_at` y `expires_at = now() + 30 días`.
+- **Reuso:** si el id de sesión existe y no está revocada, pero el hash no
+  coincide, el token es viejo → se revoca la sesión y se rechaza la petición.
+- **Vencida o revocada:** se rechaza sin cambiar nada.
+- **En cada petición autenticada** se lee la cuenta y se exige `status =
+  'active'`; si no, se rechaza aunque el JWT siga vigente.
+- **Cambio o recuperación de contraseña:** se actualiza `password_changed_at` y
+  se revocan todas las sesiones del usuario en la misma transacción.
+
+[PROPUESTA] El hash del secreto del token de renovación es SHA-256. Como el
+secreto es aleatorio y largo, no necesita un hash lento como las contraseñas.
+
+## 4. Tokens firmados de correo
+
+| Token | Contenido | Vida | Deja de servir |
 |---|---|---|---|
-| POST | `/api/v1/auth/register` | `{email, display_name, password}` | 201 `UserResponse` |
-| POST | `/api/v1/auth/login` | `{email, password}` | 200 `SessionResponse` |
-| POST | `/api/v1/auth/refresh` | `{refresh_token}` | 200 `SessionResponse` |
-| POST | `/api/v1/auth/logout` | `{refresh_token?, all_devices?}` | 200 `{message}` |
-| GET | `/api/v1/users/me` | — | 200 `UserResponse` |
-| PATCH | `/api/v1/users/me` | `{display_name}` | 200 `UserResponse` |
-| GET | `/api/v1/users` | — | 200 lista paginada (solo superusuario) |
+| Verificación | id de usuario, propósito `verify_email` | 24 h (RN-11) | al vencer; verificar dos veces no cambia nada |
+| Recuperación | id de usuario, propósito `reset_password`, `password_changed_at` | 30 min (D62-A) | al vencer o cuando cambia `password_changed_at` (RN-19) |
 
-`SessionResponse`: `{access_token, refresh_token, token_type, expires_in, user}`.
+Cada token lleva su propósito, para que uno de verificación no sirva para
+recuperar la contraseña.
 
-Todos los endpoints de `/auth` llevan rate limiting por IP
-(`RATE_LIMIT_AUTH_PER_MINUTE`, 10 por defecto).
+## 5. Capas
 
-## Modelo de datos
+```
+app/modules/auth/
+├── router.py        endpoints, cookies, lectura de Origin
+├── service.py       registro, verificación, login, rotación, logout, contraseñas
+├── repository.py    app_user, privacy_consent, user_session
+├── models.py        modelos SQLAlchemy de esas tres tablas
+└── schemas.py       entrada y salida
+```
 
-Tabla `users`: `id` (UUID), `email` (unico), `display_name`, `password_hash`,
-`role` (enum `user_role`: `user` | `superuser`), `is_active`, `created_at`,
-`updated_at`.
+- La edad mínima (RN-08) se valida en el servicio, no en la base (el `.sql` lo
+  deja fuera a propósito: la edad cambia con el tiempo).
+- El formato del nombre de usuario se valida en el schema **y** lo impone la
+  base (`ck_app_user_username_format`).
+- Contraseñas con **pwdlib y Argon2** (D62-D, cierra P22), detrás de una
+  interfaz pequeña para poder cambiar el algoritmo (RNF-08). Al iniciar sesión,
+  si el hash guardado usa parámetros viejos, se vuelve a calcular.
+- Reglas de la contraseña (D62-B): 8 a 64 caracteres y que no esté en una lista
+  de contraseñas comunes incluida en el repositorio. Se valida en el servicio.
+- **Límite de intentos (D62-F):** 5 por minuto por IP en `login`,
+  `password/forgot` y `verify-email/resend`, guardado en memoria del proceso.
+- **Correos (D62-C):** el servicio usa una interfaz `send_email`. En desarrollo
+  se envía por SMTP a **Mailpit** (en Docker Compose), que captura los correos
+  y los muestra en su web; en los tests, un enviador falso. El proveedor real
+  se elige al desplegar.
+- `users` usará la dependencia de "usuario actual" que expone `auth`; no lee
+  `user_session` directamente.
 
-Los tokens de refresco **no** van a la base: viven en Redis bajo
-`auth:refresh:{user_id}` como `{jti: vencimiento}`. Cerrar todas las sesiones es
-borrar una clave.
+## 6. Riesgos
 
-## Reparto por capas
-
-| Capa | Que vive aqui |
-|---|---|
-| `users/domain` | `User`, `Email`, `RawPassword`, `UserRepository` (puerto), errores |
-| `users/application` | `GetUserProfile`, `UpdateUserProfile`, `ListUsers` |
-| `users/infrastructure` | `user_model.py`, mapper, repositorio SQLAlchemy |
-| `auth/application` | `RegisterUser`, `AuthenticateUser`, `RefreshSession`, `LogoutUser`, puerto `RefreshTokenStore` |
-| `auth/infrastructure` | `CacheRefreshTokenStore` (sobre `CachePort`) |
-| `core/security` | `JWTService`, `PasswordHashingService`, `get_current_user` |
-
-`auth` no tiene `domain/`: no tiene reglas propias, orquesta las de `users` con
-los servicios de seguridad ([ADR 0001](../../docs/adr/0001-clean-architecture-en-modulos.md)).
-
-## Decisiones
-
-- JWT HS256, acceso de 30 minutos, refresco de 30 dias con rotacion:
-  [ADR 0003](../../docs/adr/0003-autenticacion-jwt-hs256.md).
-- Hashing intercambiable con re-hasheo transparente al iniciar sesion:
-  [ADR 0004](../../docs/adr/0004-hashing-de-contrasenas-intercambiable.md).
-- Redis como almacen de tokens de refresco:
-  [ADR 0006](../../docs/adr/0006-para-que-usamos-redis.md).
-
-## Riesgos
-
-| Riesgo | Mitigacion |
-|---|---|
-| Robo del token de acceso (sin cookie HttpOnly en web) | Token corto y rotacion del de refresco |
-| Redis vacio o caido | Todo el mundo vuelve a iniciar sesion; el rate limiting deja pasar en vez de bloquear el servicio |
-| Desactivar a alguien no es inmediato | Hasta 30 minutos de margen; documentado en `core/security/dependencies.py` |
+- **Enumeración de cuentas:** login, reenvío y recuperación responden igual
+  exista o no la cuenta. La única excepción es "verifica tu correo", que solo
+  aparece con la contraseña correcta (D62-E). El registro sí revela que un
+  correo o usuario ya existe: es inevitable para que la persona elija otro.
+- **Límite de intentos en memoria:** cada proceso cuenta por separado y se
+  pierde al reiniciar. Alcanza para un solo proceso en el MVP; si la API corre
+  con varios procesos, el límite real se multiplica.
+- **Carrera en la rotación:** dos `refresh` simultáneos con el mismo token
+  pueden revocar una sesión legítima (por ejemplo, dos pestañas). Es el costo
+  aceptado de detectar reuso; el cliente debe serializar las renovaciones.
+- **Reloj:** los vencimientos se calculan en UTC en el servidor.
