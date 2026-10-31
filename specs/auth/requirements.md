@@ -4,8 +4,8 @@
 - Requisitos: RF-01, RF-03, RF-05, RF-23, RF-24 (Lista de requisitos)
 - Reglas vigentes: RN-06, RN-07, RN-08, RN-09, RN-10, RN-11, RN-12, RN-14,
   RN-17, RN-19, RN-50, RN-51, RN-67, RN-68 (05-reglas-de-negocio)
-- Decisiones: D22, D28, D41, D56, D60 (01-decisiones)
-- Estado: **borrador para revisión del equipo**
+- Decisiones: D22, D28, D41, D56, D60, D62 (01-decisiones)
+- Estado: **aprobado**
 
 Fuera de este spec (van en `specs/users/`): ver y editar el perfil (RF-04),
 desactivar la cuenta (RF-25), eliminarla (RF-26) y las funciones del
@@ -32,6 +32,9 @@ Como persona nueva, quiero crear una cuenta para guardar mis recuerdos.
   registro, **entonces** se rechaza con un mensaje que dice qué está mal.
 - **Dado** un correo o nombre de usuario que ya existe, sin importar mayúsculas
   (RN-09), **cuando** me registro, **entonces** se rechaza.
+- **Dado** una contraseña de menos de 8 o más de 64 caracteres, o que está en
+  la lista de contraseñas comunes, **cuando** me registro, **entonces** se
+  rechaza. No se exigen mayúsculas, números ni símbolos (D62-B).
 - **Dado** que envío el campo `is_superuser`, **cuando** me registro,
   **entonces** se ignora o se rechaza: el registro nunca crea superusuarios
   (D28).
@@ -48,6 +51,8 @@ Como persona registrada, quiero confirmar mi correo para poder entrar.
   **entonces** no cambia nada y no hay error.
 - **Dado** que mi cuenta sigue sin verificar, **cuando** pido reenviar el
   correo, **entonces** llega un enlace nuevo de 24 horas.
+- **Dado** que desde la misma IP ya hubo 5 reenvíos en el último minuto,
+  **cuando** pido otro, **entonces** se rechaza (D62-F).
 
 ## HU-03 Iniciar sesión (RF-01, RN-06, RN-67)
 
@@ -59,10 +64,14 @@ Como usuario, quiero entrar con mi correo o mi nombre de usuario.
   de 30 días, y se crea una sesión para este dispositivo (RN-67).
 - **Dado** credenciales incorrectas, **cuando** inicio sesión, **entonces**
   recibo el mismo error genérico, exista o no la cuenta.
-- **Dado** una cuenta `unverified`, **cuando** inicio sesión, **entonces** no
-  entro (RN-11).
+- **Dado** una cuenta `unverified` y la contraseña correcta, **cuando** inicio
+  sesión, **entonces** no entro y el mensaje me pide verificar mi correo
+  (RN-11). Con la contraseña incorrecta recibo el error genérico (D62-E).
 - **Dado** una cuenta `suspended`, **cuando** inicio sesión, **entonces** no
   entro (RN-17).
+- **Dado** que desde la misma IP ya hubo 5 intentos en el último minuto,
+  **cuando** intento otra vez, **entonces** se rechaza hasta que pase el minuto
+  (D62-F).
 - **Dado** una cuenta `deactivated`, **cuando** inicio sesión con la contraseña
   correcta, **entonces** la cuenta vuelve a `active` y entro (RN-68).
 - **Dado** una cuenta `pending_deletion` dentro de los 30 días, **cuando** inicio
@@ -99,32 +108,19 @@ sesión.
 
 - **Dado** un correo, **cuando** pido recuperar la contraseña, **entonces** la
   respuesta es la misma exista o no la cuenta, y si existe se envía un enlace.
-- **Dado** un enlace vigente, **cuando** creo una contraseña nueva, **entonces**
-  se guarda, se revocan **todas** mis sesiones (RN-67) y el enlace deja de
-  servir (RN-19).
+- **Dado** un enlace con menos de 30 minutos (D62-A) y una contraseña nueva que
+  cumple D62-B, **cuando** la envío, **entonces** se guarda, se revocan
+  **todas** mis sesiones (RN-67) y el enlace deja de servir (RN-19).
 - **Dado** un enlace vencido, alterado o ya usado, **cuando** lo uso,
   **entonces** se rechaza.
+- **Dado** que desde la misma IP ya hubo 5 pedidos de recuperación en el último
+  minuto, **cuando** pido otro, **entonces** se rechaza (D62-F).
 
 ## HU-07 Cambiar la contraseña (RN-67)
 
-- **Dado** que tengo sesión y escribo mi contraseña actual correcta, **cuando**
-  la cambio, **entonces** se guarda la nueva y se revocan todas mis sesiones.
+- **Dado** que tengo sesión, escribo mi contraseña actual correcta y la nueva
+  cumple D62-B, **cuando** la cambio, **entonces** se guarda la nueva y se
+  revocan todas mis sesiones.
 - **Dado** una contraseña actual incorrecta, **cuando** intento cambiarla,
   **entonces** se rechaza y no se revoca nada.
 
----
-
-## Pendientes que el equipo debe decidir antes de implementar
-
-- **P-A. Vida del enlace de recuperación.** RN-19 dice "vida corta" sin un
-  número. [PROPUESTA] 30 minutos.
-- **P-B. Reglas de la contraseña.** Ningún documento fija largo mínimo ni
-  composición.
-- **P-C. Envío de correos.** No está decidido el proveedor ni qué se usa en
-  desarrollo.
-- **P-D. Librería de hash.** P22 (pwdlib con Argon2 + bcrypt) sigue como
-  propuesta en el 04.
-- **P-E. Mensaje para cuenta `unverified` al iniciar sesión.** Un mensaje
-  específico ("verifica tu correo") ayuda al usuario, pero confirma que la
-  cuenta existe; uno genérico protege la privacidad (mismo criterio que D60).
-- **P-F. Límite de intentos de inicio de sesión.** No está en los documentos.

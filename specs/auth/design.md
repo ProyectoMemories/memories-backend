@@ -1,7 +1,7 @@
 # Spec: auth — Diseño
 
-Estado: **borrador para revisión del equipo**. Los puntos marcados
-[PROPUESTA] no están decididos en Drive.
+Estado: **aprobado**. Los puntos marcados [PROPUESTA] no están decididos en
+Drive; se pueden ajustar al implementar, avisando en el PR.
 
 ## 1. Tablas (memories-physical-v1.4.sql)
 
@@ -73,7 +73,7 @@ secreto es aleatorio y largo, no necesita un hash lento como las contraseñas.
 | Token | Contenido | Vida | Deja de servir |
 |---|---|---|---|
 | Verificación | id de usuario, propósito `verify_email` | 24 h (RN-11) | al vencer; verificar dos veces no cambia nada |
-| Recuperación | id de usuario, propósito `reset_password`, `password_changed_at` | P-A | al vencer o cuando cambia `password_changed_at` (RN-19) |
+| Recuperación | id de usuario, propósito `reset_password`, `password_changed_at` | 30 min (D62-A) | al vencer o cuando cambia `password_changed_at` (RN-19) |
 
 Cada token lleva su propósito, para que uno de verificación no sirva para
 recuperar la contraseña.
@@ -93,17 +93,30 @@ app/modules/auth/
   deja fuera a propósito: la edad cambia con el tiempo).
 - El formato del nombre de usuario se valida en el schema **y** lo impone la
   base (`ck_app_user_username_format`).
-- El hash de contraseñas se usa detrás de una interfaz pequeña para poder
-  cambiar el algoritmo (RNF-08, P-D).
+- Contraseñas con **pwdlib y Argon2** (D62-D, cierra P22), detrás de una
+  interfaz pequeña para poder cambiar el algoritmo (RNF-08). Al iniciar sesión,
+  si el hash guardado usa parámetros viejos, se vuelve a calcular.
+- Reglas de la contraseña (D62-B): 8 a 64 caracteres y que no esté en una lista
+  de contraseñas comunes incluida en el repositorio. Se valida en el servicio.
+- **Límite de intentos (D62-F):** 5 por minuto por IP en `login`,
+  `password/forgot` y `verify-email/resend`, guardado en memoria del proceso.
+- **Correos (D62-C):** el servicio usa una interfaz `send_email`. En desarrollo
+  se envía por SMTP a **Mailpit** (en Docker Compose), que captura los correos
+  y los muestra en su web; en los tests, un enviador falso. El proveedor real
+  se elige al desplegar.
 - `users` usará la dependencia de "usuario actual" que expone `auth`; no lee
   `user_session` directamente.
 
 ## 6. Riesgos
 
-- **Enumeración de cuentas:** registro, login, reenvío y recuperación no deben
-  revelar si un correo existe más de lo necesario (ver P-E).
+- **Enumeración de cuentas:** login, reenvío y recuperación responden igual
+  exista o no la cuenta. La única excepción es "verifica tu correo", que solo
+  aparece con la contraseña correcta (D62-E). El registro sí revela que un
+  correo o usuario ya existe: es inevitable para que la persona elija otro.
+- **Límite de intentos en memoria:** cada proceso cuenta por separado y se
+  pierde al reiniciar. Alcanza para un solo proceso en el MVP; si la API corre
+  con varios procesos, el límite real se multiplica.
 - **Carrera en la rotación:** dos `refresh` simultáneos con el mismo token
   pueden revocar una sesión legítima (por ejemplo, dos pestañas). Es el costo
   aceptado de detectar reuso; el cliente debe serializar las renovaciones.
 - **Reloj:** los vencimientos se calculan en UTC en el servidor.
-- **Correos:** sin proveedor decidido (P-C), los tests usan un enviador falso.

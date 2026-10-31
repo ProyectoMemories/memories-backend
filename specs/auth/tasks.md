@@ -1,7 +1,6 @@
 # Spec: auth — Tareas
 
-**No se empieza** hasta que el equipo revise este spec y cierre P-A a P-F de
-[requirements.md](requirements.md). Depende de `feat/app-skeleton` y
+Depende de `chore/docker-compose` (con Mailpit), `feat/app-skeleton` y
 `feat/db-initial-migration`.
 
 Cada tarea lleva su test. Se marcan `[x]` al terminar.
@@ -10,8 +9,10 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
 
 - [ ] Modelos SQLAlchemy de `app_user`, `privacy_consent` y `user_session`
       (alineados con la migración 0001)
-- [ ] Servicio de hash de contraseñas intercambiable · test: verifica y
-      rechaza; cambiar el algoritmo no rompe hashes viejos
+- [ ] Hash de contraseñas con pwdlib y Argon2 detrás de una interfaz · test:
+      verifica, rechaza y recalcula hashes con parámetros viejos
+- [ ] Validación de contraseña (8 a 64, lista de comunes) · tests: límites y
+      una contraseña común
 - [ ] Emisión y validación del JWT de acceso (15 min, `sub`, `sid`) · test:
       vencido y alterado se rechazan
 - [ ] Tokens firmados de correo con propósito · test: uno de verificación no
@@ -22,14 +23,18 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
 - [ ] `POST /auth/register` · tests: datos válidos, menor de 14, sin
       consentimiento, usuario y correo repetidos sin importar mayúsculas,
       formato de usuario inválido, `is_superuser` ignorado
-- [ ] Enviador de correos falso para desarrollo y tests (hasta cerrar P-C)
+- [ ] Interfaz `send_email`: SMTP hacia Mailpit en desarrollo y enviador
+      falso en tests
 - [ ] `POST /auth/verify-email` y `/resend` · tests: vigente, vencido,
       alterado, ya verificado
 
 ## Sesión
 
+- [ ] Límite de 5 intentos por minuto por IP, en memoria · test: el sexto
+      intento se rechaza y pasa al minuto siguiente
 - [ ] `POST /auth/login` (Android y web) · tests: correo y usuario, error
-      genérico, `unverified`, `suspended`, `deactivated` se reactiva,
+      genérico, `unverified` con contraseña correcta e incorrecta (D62-E),
+      `suspended`, `deactivated` se reactiva,
       `pending_deletion` se cancela
 - [ ] Dependencia "usuario actual" que exige cuenta activa · test: un usuario
       suspendido con JWT vigente es rechazado

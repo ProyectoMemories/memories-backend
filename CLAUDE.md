@@ -68,7 +68,7 @@ los tres lo deciden.
 | Sesiones | JWT de acceso de 15 min + token de renovación de 30 días rotado y guardado como hash en `user_session` (D56, RN-67) |
 | Contraseñas | Hash con algoritmo intercambiable (RNF-08) |
 | Fotos | Almacenamiento compatible con S3; MinIO en local, con versión fijada (D46) |
-| Entorno local | Docker Compose: PostgreSQL, API y MinIO |
+| Entorno local | Docker Compose: PostgreSQL, API, MinIO y Mailpit para ver los correos (D62) |
 | Calidad | pytest, ruff, GitHub Actions (D48) |
 
 **No hay Redis** en este proyecto: las sesiones viven en PostgreSQL (D56).
