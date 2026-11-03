@@ -1,20 +1,22 @@
-# Que cambia
+# Qué cambia
 
-<!-- Una o dos lineas. Si hay spec, enlazalo: specs/<feature>/ -->
+<!-- Una o dos líneas. Cita el spec y los IDs de Drive que cubre (RF, RN, D). -->
 
 ## Spec
 
-- [ ] Existe `specs/<feature>/` y esta actualizado
-- [ ] Las tareas cerradas estan marcadas `[x]` en `tasks.md`
+- [ ] Existe `specs/<feature>/` y está actualizado
+- [ ] Las tareas cerradas están marcadas `[x]` en `tasks.md`
 
-## Comprobaciones
+## Revisión propia (D61: nadie más aprueba, así que revisa tú)
 
-- [ ] `ruff check . && ruff format .`
-- [ ] `mypy app`
+- [ ] Leí el diff completo, archivo por archivo
+- [ ] `ruff check . && ruff format --check .`
 - [ ] `pytest` en verde
-- [ ] Si toca el esquema: hay migracion de Alembic y `alembic check` pasa
-- [ ] Si toca datos de una persona: hay un test que intenta leerlos desde otra cuenta y falla
+- [ ] Si toca el esquema: hay una migración de Alembic nueva, revisada a mano
+- [ ] Si lee datos de una persona: hay un test que intenta leerlos desde otra
+      cuenta y recibe 404 (D60)
+- [ ] No hay secretos, `.env` ni archivos personales en el diff
 
-## Notas para quien revisa
+## Notas
 
-<!-- Decisiones discutibles, deuda asumida, lo que quedo fuera -->
+<!-- Decisiones discutibles, deuda asumida, lo que quedó fuera -->
