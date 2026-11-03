@@ -1,0 +1,19 @@
+# Configuración de las herramientas de calidad. Las dependencias de la app se
+# agregan en feat/app-skeleton.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+# E/F: errores básicos · I: orden de imports · B: errores comunes
+# UP: sintaxis moderna de Python · S: problemas de seguridad · SIM: simplificaciones
+select = ["E", "F", "I", "B", "UP", "S", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# En las pruebas, assert es la forma normal de comprobar.
+"tests/**" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
