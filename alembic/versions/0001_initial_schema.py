@@ -1,11 +1,13 @@
-"""Esquema inicial: modelo físico v1.4 (D53, D56).
+"""Esquema inicial: modelo físico v1.5 (D53, D56, D64).
 
-El SQL de cada sección es una copia literal de memories-physical-v1.4.sql
+El SQL de cada sección es una copia literal de memories-physical-v1.5.sql
 (Drive, carpeta "Proyecto Recuerdos"), sin el BEGIN/COMMIT: Alembic maneja la
 transacción. Se escribe a mano y no con --autogenerate porque este no reproduce
 los triggers, `ON DELETE SET NULL (columna)` ni todos los CHECK (CLAUDE.md §8).
 
-Si el modelo físico cambia, NO se edita esta migración: se crea una nueva.
+Hasta el primer despliegue con datos reales, si el modelo físico cambia se
+edita esta migración y cada integrante recrea su base local (D64). Después del
+primer despliegue, todo cambio es una migración nueva.
 
 Revision ID: 0001
 Revises:
@@ -166,10 +168,11 @@ CREATE TRIGGER trg_album_updated_at BEFORE UPDATE ON album
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 CREATE TABLE album_member (                                                   -- RN-03, RN-05, RN-27
-  album_id  uuid        NOT NULL,
-  user_id   uuid        NOT NULL,
-  role      member_role NOT NULL,
-  joined_at timestamptz NOT NULL DEFAULT now(),
+  album_id   uuid        NOT NULL,
+  user_id    uuid        NOT NULL,
+  role       member_role NOT NULL,
+  joined_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),   -- RN-69, D64: last role change
   CONSTRAINT pk_album_member PRIMARY KEY (album_id, user_id),
   CONSTRAINT fk_album_member_album FOREIGN KEY (album_id)
     REFERENCES album (id) ON DELETE CASCADE,
@@ -177,6 +180,8 @@ CREATE TABLE album_member (                                                   --
     REFERENCES app_user (id) ON DELETE CASCADE
 );
 CREATE INDEX ix_album_member_user ON album_member (user_id);                 -- "albums shared with me"
+CREATE TRIGGER trg_album_member_updated_at BEFORE UPDATE ON album_member
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 CREATE TABLE album_invitation (                                               -- RN-28
   id            uuid        NOT NULL,
@@ -251,6 +256,7 @@ CREATE TABLE photo (
   latitude      numeric(9,6),
   longitude     numeric(9,6),
   created_at    timestamptz   NOT NULL DEFAULT now(),
+  updated_at    timestamptz   NOT NULL DEFAULT now(),   -- D64: date and location can be edited
   CONSTRAINT pk_photo PRIMARY KEY (id),
   CONSTRAINT uq_photo_id_album UNIQUE (id, album_id),                         -- target of composite FKs
   CONSTRAINT fk_photo_album FOREIGN KEY (album_id)
@@ -271,6 +277,8 @@ CREATE TABLE photo (
 );
 CREATE INDEX ix_photo_album_taken_on ON photo (album_id, taken_on);          -- album calendar (RN-61); also serves FK album_id
 CREATE INDEX ix_photo_uploaded_by    ON photo (uploaded_by);
+CREATE TRIGGER trg_photo_updated_at BEFORE UPDATE ON photo
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- Album cover: must be a photo of the same album; if the photo is deleted,
 -- only cover_photo_id becomes NULL (PG 15+ column list in SET NULL).
@@ -445,6 +453,10 @@ COMMENT ON COLUMN album.custom_category IS
   'Custom category written by the owner, max 50 characters. Exactly one of base_category or custom_category is set (RN-63).';
 COMMENT ON COLUMN photo.taken_on IS
   'Date the photo was taken. If only month and year are known, day 1 is stored and hidden from the user (RN-55, RN-62).';
+COMMENT ON COLUMN photo.updated_at IS
+  'Last edit of the photo data (date or location). Editing a photo never changes memories already generated (RN-58).';
+COMMENT ON COLUMN album_member.updated_at IS
+  'Last change of the member''s role by the album owner (RN-69).';
 COMMENT ON COLUMN description.photo_id IS
   'Photo this description belongs to; NULL = standalone description. Deleting the photo deletes it (RN-64).';
 COMMENT ON COLUMN album.last_reminder_sent_on IS

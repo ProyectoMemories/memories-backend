@@ -23,7 +23,7 @@ solo hay README técnico, este CLAUDE.md y `specs/`.
 | Arquitectura | Context Proyecto para Claude / 04-arquitectura |
 | Reglas de negocio (RN-xx) | Context Proyecto para Claude / 05-reglas-de-negocio |
 | Requisitos (RF-xx, RNF-xx) | Lista de requisitos |
-| Modelo físico vigente | memories-physical-v1.4.sql |
+| Modelo físico vigente | memories-physical-v1.5.sql |
 
 - **No copies esos documentos al repositorio.** Un spec cita los IDs (RF-01,
   RN-67, D56) en lugar de repetir su texto.
@@ -123,7 +123,7 @@ README.md                     cómo levantar y probar el proyecto (D55)
 Dockerfile · docker-compose.yml   imagen de la API y entorno local
 .github/                      CI y plantilla de PR
 specs/<feature>/              requirements.md, design.md, tasks.md
-alembic.ini · alembic/versions/   migraciones (0001 = modelo v1.4)
+alembic.ini · alembic/versions/   migraciones (0001 = modelo v1.5)
 tests/                        espejo de app/
 app/
 ├── main.py                   app FastAPI y montaje de routers
@@ -151,7 +151,7 @@ app/
    `specs/<feature>/`. Si no existe, créala y **detente** para que la revisemos.
 2. **requirements.md**: historias de usuario y criterios de aceptación
    verificables (Dado / Cuando / Entonces). Cita los RF, RN y D de Drive.
-3. **design.md**: contratos de la API, tablas que usa (del modelo v1.4), capas
+3. **design.md**: contratos de la API, tablas que usa (del modelo v1.5), capas
    que se tocan y riesgos. Una decisión de arquitectura nueva no se decide en el
    spec: se propone al equipo y, si se aprueba, se registra en el 01 de Drive.
 4. **tasks.md**: tareas pequeñas, ordenadas por dependencia, cada una con su
@@ -176,11 +176,16 @@ Monolito modular (D13): cada módulo sigue `router → service → repository`.
 
 ## 8. Base de datos
 
-- El esquema sale de **memories-physical-v1.4.sql** (D53, D56). La migración
-  `0001` se escribe **a mano** desde ese archivo: autogenerate no reproduce los
-  triggers, `ON DELETE SET NULL (columna)` ni todos los CHECK.
-- Después de la `0001`, **todo cambio de esquema es una migración nueva** de
-  Alembic, revisada a mano. Nunca SQL suelto contra la base.
+- El esquema sale de **memories-physical-v1.5.sql** (D53, D56, D64). La
+  migración `0001` se escribe **a mano** desde ese archivo: autogenerate no
+  reproduce los triggers, `ON DELETE SET NULL (columna)` ni todos los CHECK.
+- **Hasta el primer despliegue con datos reales** (D64), un cambio de esquema
+  se hace así: el equipo aprueba la versión nueva del `.sql` en Drive, se edita
+  la `0001` para que sea copia literal de ese archivo, y el PR avisa que cada
+  integrante debe recrear su base local (`alembic downgrade base` y
+  `alembic upgrade head`).
+- **Después del primer despliegue**, todo cambio de esquema es una migración
+  nueva de Alembic, revisada a mano. Nunca SQL suelto contra la base.
 - Ids UUIDv7 generados en el backend, **sin DEFAULT** en la columna (D41).
 - Todo timestamp es `timestamptz` en UTC.
 - Nombres de restricciones: `pk_`, `fk_`, `uq_`, `ck_`, `ix_` + tabla + detalle,

@@ -3,7 +3,7 @@
 Estado: **aprobado**. Los puntos marcados [PROPUESTA] no están decididos en
 Drive; se pueden ajustar al implementar, avisando en el PR.
 
-## 1. Tablas (memories-physical-v1.4.sql)
+## 1. Tablas (memories-physical-v1.5.sql)
 
 | Tabla | Uso |
 |---|---|

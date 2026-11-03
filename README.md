@@ -193,6 +193,18 @@ Después de un **Pull origin** en `main`:
 
 Si alguno falla, lo más probable es que te saltaste el paso 1.
 
+**Si el PR cambió la migración `0001`** (lo dice su descripción): hasta el
+primer despliegue el esquema se corrige en la misma `0001` (D64), así que tu
+base local tiene que recrearse. En lugar del paso 4:
+
+```powershell
+docker compose exec api alembic downgrade base
+docker compose exec api alembic upgrade head
+```
+
+Esto borra las tablas y los datos de prueba de tu base local y la vuelve a
+crear con el esquema nuevo.
+
 Nunca hagas merge ni commits en `main` desde tu PC: `main` solo se actualiza
 con Pull. Para trabajar, crea tu rama (ver [Cómo contribuir](#cómo-contribuir)).
 
