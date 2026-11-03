@@ -16,6 +16,154 @@ El código anterior, escrito con el PRD v3.0, se conserva en el tag
 - Python 3.12
 - Docker Desktop (en Windows, con el backend WSL 2)
 
+## Puesta en marcha paso a paso (Windows)
+
+Sigue estos pasos en orden la primera vez. Al terminar tendrás la API, la base
+de datos con todas sus tablas, MinIO y Mailpit corriendo en tu PC, y las pruebas
+en verde. Los comandos son para **PowerShell** (por ejemplo, la terminal de
+VS Code) y se ejecutan **desde la carpeta del repositorio**.
+
+### 1. Instala las herramientas
+
+| Herramienta | Para qué | Cómo comprobarlo |
+|---|---|---|
+| [Python 3.12](https://www.python.org/downloads/) | Pruebas y lint | `py -3.12 --version` |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) (con WSL 2) | API, base de datos, MinIO y Mailpit | `docker --version` y Docker Desktop abierto |
+| [GitHub Desktop](https://desktop.github.com/) o Git | Bajar el código | — |
+
+Al instalar Python, marca **"Add python.exe to PATH"**.
+
+### 2. Baja la última versión de `main`
+
+- **Si aún no tienes el repo:** en GitHub Desktop, File → Clone repository →
+  `ProyectoMemories/memories-backend`.
+- **Si ya lo tenías:** en GitHub Desktop cámbiate a la rama `main` →
+  **Fetch origin** → **Pull origin**.
+
+Si tu `main` local tiene commits que no están en GitHub (por ejemplo, un merge
+hecho en tu PC), GitHub no te dejará subirlos. Déjalo igual que GitHub (borra
+todo lo que tengas en `main` local y no esté en GitHub):
+
+```powershell
+git checkout main
+git fetch origin
+git reset --hard origin/main
+```
+
+### 3. Limpia lo que quedó del código anterior (solo si ya tenías el repo)
+
+El código viejo se borró en `main`, pero pueden quedar restos en tu PC.
+
+**Contenedores viejos.** Ocupan los mismos puertos y hacen fallar Docker con
+"ports are not available":
+
+```powershell
+docker ps -a --filter "name=memories_"
+docker rm -f memories_db memories_redis memories_minio memories_minio_init memories_api memories_adminer
+```
+
+Si alguno no existe, Docker solo lo avisa. Los contenedores nuevos se llaman
+`memories-db-1`, `memories-api-1`, etc. (con guion): no los borres.
+
+**Archivos viejos que git no borró.** Muestra los archivos que están en tu
+carpeta pero no en el repositorio:
+
+```powershell
+git clean -n -d
+```
+
+Si en la lista aparecen archivos tuyos que quieras conservar, cópialos fuera
+del repositorio. Después bórralos con `git clean -f -d`. No toca `.env`,
+`.venv` ni las cachés (están en `.gitignore`).
+
+### 4. Crea el entorno de Python e instala las dependencias
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+```
+
+Si `Activate.ps1` da error de permisos, ejecuta una vez
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` y vuelve a intentarlo.
+Sabes que el entorno está activo porque la terminal empieza con `(.venv)`.
+
+### 5. Crea tu `.env`
+
+```powershell
+Copy-Item .env.example .env -Force
+```
+
+Funciona tal cual en local. Si cambias `POSTGRES_PASSWORD`, cámbiala también
+dentro de `DATABASE_URL` y `TEST_DATABASE_URL`. El `.env` nunca se sube a
+GitHub.
+
+### 6. Levanta Docker
+
+Con Docker Desktop abierto:
+
+```powershell
+docker compose up -d --build
+docker compose ps -a
+```
+
+La primera vez tarda unos minutos porque descarga las imágenes. Debes ver
+`api`, `db`, `minio` y `mailpit` en **healthy**, y `minio-init` en
+**Exited (0)** (creó el bucket de fotos y terminó). Si algo falla, revisa
+[Si falla con "ports are not available"](#si-falla-con-ports-are-not-available).
+
+### 7. Crea las tablas de la base de datos
+
+```powershell
+docker compose exec api alembic upgrade head
+docker compose exec api alembic current
+docker compose exec db psql -U memories -d memories -c "\dt"
+```
+
+Debes ver `0001 (head)` y **17 tablas** (las 16 del modelo más
+`alembic_version`).
+
+### 8. Corre el lint y las pruebas
+
+```powershell
+ruff check .
+ruff format --check .
+pytest
+```
+
+Debes ver `All checks passed!`, los archivos ya formateados y todas las
+pruebas en verde, **ninguna `skipped`**. Si salen `skipped`, la base no está
+levantada o falta `TEST_DATABASE_URL` en tu `.env`.
+
+### 9. Comprueba en el navegador
+
+| Qué | Dónde | Qué debes ver |
+|---|---|---|
+| API | http://localhost:8001/health | `{"status":"ok"}` |
+| Documentación de la API | http://localhost:8001/docs | La documentación interactiva |
+| MinIO | http://localhost:9011 | Entra con `MINIO_ROOT_USER` y `MINIO_ROOT_PASSWORD` del `.env`; debe estar el bucket `memories-photos` |
+| Mailpit | http://localhost:8025 | La bandeja de correos (vacía por ahora) |
+
+Listo: estás al día. Para apagar todo, `docker compose down` (conserva los
+datos).
+
+## Cada vez que bajes cambios de `main`
+
+Después de un **Pull origin** en `main`:
+
+1. Si el PR cambió `.env.example`, vuelve a copiarlo:
+   `Copy-Item .env.example .env -Force` (y repite tus contraseñas si las
+   cambiaste).
+2. Con `(.venv)` activo: `pip install -r requirements-dev.txt`
+3. `docker compose up -d --build`
+4. `docker compose exec api alembic upgrade head`
+5. `pytest`
+
+Si alguno falla, lo más probable es que te saltaste el paso 1.
+
+Nunca hagas merge ni commits en `main` desde tu PC: `main` solo se actualiza
+con Pull. Para trabajar, crea tu rama (ver [Cómo contribuir](#cómo-contribuir)).
+
 ## Calidad: lint y pruebas
 
 Windows (PowerShell), desde la carpeta del repositorio:
