@@ -147,6 +147,38 @@ levantada o falta `TEST_DATABASE_URL` en tu `.env`.
 Listo: estás al día. Para apagar todo, `docker compose down` (conserva los
 datos).
 
+## Ver las tablas con DBeaver
+
+Con Docker levantado (`db` en **healthy**):
+
+1. En DBeaver: **Database → New Database Connection** → **PostgreSQL** →
+   Next.
+2. Llena la conexión con los valores del `.env`:
+
+   | Campo | Valor |
+   |---|---|
+   | Host | `localhost` |
+   | Port | `5433` (no 5432) |
+   | Database | `memories` |
+   | Username | `memories` |
+   | Password | `cambiame` |
+
+   Son los valores por defecto de `.env.example`, solo para tu PC. Si cambiaste
+   `POSTGRES_PASSWORD` en tu `.env`, usa esa.
+3. **Test Connection.** La primera vez DBeaver pide descargar el driver de
+   PostgreSQL: acepta con **Download**. Cuando diga "Connected", pulsa
+   **Finish**.
+4. Las tablas están en `memories` → Databases → `memories` → Schemas →
+   **public** → **Tables**: las 16 del modelo más `alembic_version`. Para ver
+   el diagrama con las relaciones: clic derecho en `public` → **View Diagram**.
+
+- **No crees ni cambies tablas desde DBeaver.** Todo cambio de esquema va en
+  una migración de Alembic; si no, tu base deja de coincidir con la de los
+  demás. Mirar datos y hacer consultas, sin problema.
+- La base `memories_test` la crean y la borran las pruebas: no trabajes en ella.
+- "Connection refused": Docker no está levantado o el puerto no es 5433.
+  "password authentication failed": la contraseña no coincide con tu `.env`.
+
 ## Cada vez que bajes cambios de `main`
 
 Después de un **Pull origin** en `main`:
