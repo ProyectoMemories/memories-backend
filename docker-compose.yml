@@ -1,5 +1,4 @@
-# Entorno local de Memories: PostgreSQL 18, MinIO (S3) y Mailpit.
-# La API se agrega en feat/app-skeleton.
+# Entorno local de Memories: API, PostgreSQL 18, MinIO (S3) y Mailpit.
 #
 # Uso: copia .env.example a .env y ejecuta `docker compose up -d`.
 # Los puertos se publican solo en 127.0.0.1: nada queda expuesto a la red local.
@@ -7,6 +6,37 @@
 name: memories
 
 services:
+  api:
+    build: .
+    restart: unless-stopped
+    # En desarrollo se recarga sola al guardar un archivo de app/.
+    command:
+      ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0",
+       "--port", "8000", "--reload", "--reload-dir", "app"]
+    environment:
+      APP_ENV: development
+      WEB_APP_ORIGIN: ${WEB_APP_ORIGIN:?Copia .env.example a .env}
+      # En Windows los cambios de una carpeta montada no avisan al contenedor;
+      # con esto el recargador revisa los archivos cada cierto tiempo.
+      WATCHFILES_FORCE_POLLING: "true"
+    volumes:
+      - ./app:/srv/app
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-8001}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   db:
     # PostgreSQL 18 (D41). Se fija la versión mayor: los parches menores (18.x)
     # traen correcciones de seguridad y no cambian el formato de los datos.

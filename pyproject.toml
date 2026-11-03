@@ -1,5 +1,5 @@
-# Configuración de las herramientas de calidad. Las dependencias de la app se
-# agregan en feat/app-skeleton.
+# Configuración de las herramientas de calidad. Las dependencias están en
+# requirements.txt (API) y requirements-dev.txt (desarrollo y CI).
 
 [tool.ruff]
 target-version = "py312"
@@ -14,6 +14,11 @@ select = ["E", "F", "I", "B", "UP", "S", "SIM"]
 # En las pruebas, assert es la forma normal de comprobar.
 "tests/**" = ["S101"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+# Las advertencias de las librerías se ven como errores para enterarnos a tiempo.
+filterwarnings = ["error"]
