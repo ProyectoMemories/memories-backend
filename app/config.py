@@ -7,9 +7,23 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):
+class DatabaseSettings(BaseSettings):
+    """Lo mínimo para conectarse a la base. Lo usan la API y Alembic."""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # Formato: postgresql+psycopg://usuario:clave@host:puerto/base
+    database_url: str
+
+    @field_validator("database_url")
+    @classmethod
+    def _psycopg_driver(cls, value: str) -> str:
+        if not value.startswith("postgresql+psycopg://"):
+            raise ValueError("debe empezar con postgresql+psycopg://")
+        return value
+
+
+class Settings(DatabaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
 
     # Único origen al que CORS deja llamar a la API: el de la app web

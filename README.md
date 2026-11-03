@@ -32,7 +32,14 @@ pytest
 macOS o Linux: igual, pero `python3.12 -m venv .venv` y
 `source .venv/bin/activate`.
 
-El CI de GitHub Actions corre lo mismo en cada Pull Request.
+Las pruebas de la base (`tests/db/`) necesitan PostgreSQL: levántalo con
+`docker compose up -d db` y deja `TEST_DATABASE_URL` en tu `.env` (viene en
+`.env.example`). Usan una base aparte, `memories_test`, que se borra y se crea en
+cada corrida: nunca tocan tus datos. Si la base no está levantada, esas pruebas
+se saltan con un aviso (en el CI, en cambio, fallan).
+
+El CI de GitHub Actions corre lo mismo en cada Pull Request, contra
+PostgreSQL 18.
 
 ## Entorno local (Docker)
 
@@ -56,6 +63,18 @@ docker compose ps           # api, db, minio y mailpit deben decir "healthy"
 - Ver los logs: `docker compose logs -f`
 - Apagar: `docker compose down` (los datos se conservan)
 - Borrar también los datos: `docker compose down -v` (¡no se puede deshacer!)
+
+### Migraciones de la base
+
+La primera vez, y cada vez que entre una migración nueva:
+
+```powershell
+docker compose exec api alembic upgrade head
+docker compose exec api alembic current     # debe decir "(head)"
+```
+
+Para deshacer la última migración: `docker compose exec api alembic downgrade -1`
+(borra tablas y sus datos; úsalo solo en tu entorno local).
 
 La API se recarga sola cuando guardas un archivo de `app/`. Si cambias
 `requirements.txt` o el `Dockerfile`, vuelve a ejecutar

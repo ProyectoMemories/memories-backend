@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.config import Settings
-from tests.conftest import WEB_APP_ORIGIN
+from tests.conftest import DATABASE_URL, WEB_APP_ORIGIN
 
 
 @pytest.mark.parametrize(
@@ -12,12 +12,22 @@ from tests.conftest import WEB_APP_ORIGIN
 )
 def test_rechaza_origenes_invalidos(origin: str) -> None:
     with pytest.raises(ValidationError):
-        Settings(web_app_origin=origin)
+        Settings(web_app_origin=origin, database_url=DATABASE_URL)
 
 
 def test_rechaza_entorno_desconocido() -> None:
     with pytest.raises(ValidationError):
-        Settings(app_env="staging", web_app_origin=WEB_APP_ORIGIN)
+        Settings(
+            app_env="staging", web_app_origin=WEB_APP_ORIGIN, database_url=DATABASE_URL
+        )
+
+
+def test_rechaza_url_de_base_sin_psycopg() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            web_app_origin=WEB_APP_ORIGIN,
+            database_url="postgresql://memories:memories@localhost:5432/memories",
+        )
 
 
 def test_cors_acepta_el_origen_de_la_app_web(client: TestClient) -> None:

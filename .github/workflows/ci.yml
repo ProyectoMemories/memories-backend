@@ -42,6 +42,24 @@ jobs:
     name: pytest
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # PostgreSQL 18 real para las migraciones y las pruebas de la base (D41).
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: memories
+          POSTGRES_PASSWORD: memories
+          POSTGRES_DB: memories
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U memories"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://memories:memories@localhost:5432/memories
+      TEST_DATABASE_URL: postgresql+psycopg://memories:memories@localhost:5432/memories_test
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -53,6 +71,12 @@ jobs:
             requirements-dev.txt
       - name: Instalar herramientas
         run: pip install -r requirements-dev.txt
+      - name: "Migraciones: upgrade → downgrade → upgrade"
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+          alembic current | grep -q "(head)"
       - name: Pruebas
         run: pytest
 
@@ -87,6 +111,13 @@ jobs:
         run: |
           curl -fsS http://127.0.0.1:8001/health | tee health.json
           grep -q '"status":"ok"' health.json
+      - name: Aplicar las migraciones desde la imagen de la API
+        run: |
+          docker compose exec -T api alembic upgrade head
+          docker compose exec -T db psql -U memories -d memories -tAc \
+            "select count(*) from pg_tables where schemaname = 'public'" | tee tables.txt
+          # 16 tablas del modelo v1.4 + alembic_version
+          grep -qx 17 tables.txt
       - name: Logs si algo falló
         if: failure()
         run: docker compose logs
