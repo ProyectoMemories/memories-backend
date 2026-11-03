@@ -1,0 +1,89 @@
+# Entorno local de Memories: PostgreSQL 18, MinIO (S3) y Mailpit.
+# La API se agrega en feat/app-skeleton.
+#
+# Uso: copia .env.example a .env y ejecuta `docker compose up -d`.
+# Los puertos se publican solo en 127.0.0.1: nada queda expuesto a la red local.
+
+name: memories
+
+services:
+  db:
+    # PostgreSQL 18 (D41). Se fija la versión mayor: los parches menores (18.x)
+    # traen correcciones de seguridad y no cambian el formato de los datos.
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Copia .env.example a .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copia .env.example a .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Copia .env.example a .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      # Desde la imagen 18, el volumen se monta en /var/lib/postgresql
+      # (antes era /var/lib/postgresql/data).
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  minio:
+    # MinIO dejó de publicar imágenes de la edición comunitaria (D46). Se usa
+    # Silo, el fork mantenido por Pigsty, compatible con la API S3 y con las
+    # variables MINIO_*. Versión fijada; nunca `latest`.
+    image: docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Copia .env.example a .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Copia .env.example a .env}
+      # Alias "local" del cliente mcli, usado por el healthcheck.
+      MC_HOST_local: http://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@localhost:9000
+    ports:
+      - "127.0.0.1:${MINIO_API_HOST_PORT:-9010}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_HOST_PORT:-9011}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mcli", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  minio-init:
+    # Crea el bucket de fotos una vez y termina. Es privado por defecto: las
+    # fotos se sirven solo con URLs firmadas (04).
+    image: docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["mcli"]
+    command: ["mb", "--ignore-existing", "local/${S3_BUCKET:?Copia .env.example a .env}"]
+    environment:
+      MC_HOST_local: http://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@minio:9000
+    restart: "no"
+
+  mailpit:
+    # Captura todos los correos que envía la API en desarrollo (D62-C).
+    # Nada sale a internet; se ven en la web de Mailpit.
+    image: docker.io/axllent/mailpit:v1.31.6
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_HOST_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  minio-data:

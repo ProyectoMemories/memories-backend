@@ -82,12 +82,22 @@ ruff format .                         # formato (el CI usa --check)
 pytest                                # pruebas
 ```
 
-El resto se completa con los PR de `chore/docker-compose`, `feat/app-skeleton`
-y `feat/db-initial-migration`. No inventes comandos que el repositorio todavía
-no tiene.
+```bash
+docker compose up -d         # PostgreSQL 18, MinIO (+ bucket) y Mailpit
+docker compose ps            # todos deben estar "healthy"
+docker compose logs -f       # logs
+docker compose down          # apagar (conserva los datos)
+```
 
-El CI (`.github/workflows/ci.yml`) corre `ruff` y `pytest` en cada PR; los dos
-deben pasar antes de fusionar (D61).
+`docker compose down -v` borra los datos: **pide confirmación antes de
+usarlo** (§10).
+
+El resto se completa con `feat/app-skeleton` y `feat/db-initial-migration`. No
+inventes comandos que el repositorio todavía no tiene.
+
+El CI (`.github/workflows/ci.yml`) corre `ruff`, `pytest` y `docker-compose`
+(levanta el entorno y comprueba cada servicio) en cada PR; deben pasar antes de
+fusionar (D61).
 
 ## 5. Estructura (respétala)
 

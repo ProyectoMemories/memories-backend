@@ -62,3 +62,34 @@ jobs:
             exit 0
           fi
           exit "$code"
+
+  docker-compose:
+    name: docker-compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Preparar .env de ejemplo
+        run: cp .env.example .env
+      - name: Validar el archivo
+        run: docker compose config --quiet
+      - name: Levantar los servicios y esperar sus healthchecks
+        run: docker compose up -d --wait --wait-timeout 180 db minio mailpit
+      - name: Crear el bucket (dos veces, para probar que es idempotente)
+        run: |
+          docker compose run --rm minio-init
+          docker compose run --rm minio-init
+      - name: Comprobar PostgreSQL 18
+        run: |
+          docker compose exec -T db psql -U memories -d memories -tAc "show server_version" | tee version.txt
+          grep -q '^18\.' version.txt
+      - name: Comprobar que el bucket existe
+        run: docker compose exec -T minio mcli ls local/memories-photos
+      - name: Comprobar Mailpit
+        run: curl -fsS http://127.0.0.1:8025/api/v1/info
+      - name: Logs si algo falló
+        if: failure()
+        run: docker compose logs
+      - name: Apagar
+        if: always()
+        run: docker compose down -v
