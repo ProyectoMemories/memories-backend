@@ -28,7 +28,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
       - name: Instalar herramientas
         run: pip install -r requirements-dev.txt
       - name: Lint
@@ -46,22 +48,13 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
       - name: Instalar herramientas
         run: pip install -r requirements-dev.txt
       - name: Pruebas
-        # pytest devuelve 5 cuando no encuentra pruebas. Se acepta SOLO mientras
-        # no exista ninguna; feat/app-skeleton agrega la primera y quita esta
-        # excepción.
-        run: |
-          set +e
-          pytest
-          code=$?
-          if [ "$code" -eq 5 ]; then
-            echo "::warning::Todavía no hay pruebas en tests/"
-            exit 0
-          fi
-          exit "$code"
+        run: pytest
 
   docker-compose:
     name: docker-compose
@@ -87,6 +80,13 @@ jobs:
         run: docker compose exec -T minio mcli ls local/memories-photos
       - name: Comprobar Mailpit
         run: curl -fsS http://127.0.0.1:8025/api/v1/info
+      - name: Construir y levantar la API
+        # --no-deps: sus dependencias ya están arriba y el bucket ya existe.
+        run: docker compose up -d --build --wait --wait-timeout 180 --no-deps api
+      - name: Comprobar /health de la API
+        run: |
+          curl -fsS http://127.0.0.1:8001/health | tee health.json
+          grep -q '"status":"ok"' health.json
       - name: Logs si algo falló
         if: failure()
         run: docker compose logs

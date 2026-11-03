@@ -83,16 +83,22 @@ pytest                                # pruebas
 ```
 
 ```bash
-docker compose up -d         # PostgreSQL 18, MinIO (+ bucket) y Mailpit
+docker compose up -d --build # API, PostgreSQL 18, MinIO (+ bucket) y Mailpit
 docker compose ps            # todos deben estar "healthy"
-docker compose logs -f       # logs
+docker compose logs -f api   # logs de la API (se recarga sola al guardar)
 docker compose down          # apagar (conserva los datos)
+uvicorn app.main:create_app --factory --reload   # API sin Docker
 ```
+
+- La app se arma con la fábrica `create_app(settings)`: en las pruebas se le
+  pasa un `Settings` propio, sin depender del entorno.
+- La configuración vive en `app/config.py` y solo se lee de variables de
+  entorno. Toda variable nueva va también en `.env.example`.
 
 `docker compose down -v` borra los datos: **pide confirmación antes de
 usarlo** (§10).
 
-El resto se completa con `feat/app-skeleton` y `feat/db-initial-migration`. No
+Los comandos de migraciones se agregan con `feat/db-initial-migration`. No
 inventes comandos que el repositorio todavía no tiene.
 
 El CI (`.github/workflows/ci.yml`) corre `ruff`, `pytest` y `docker-compose`
@@ -104,6 +110,7 @@ fusionar (D61).
 ```
 CLAUDE.md / CLAUDE.local.md   memoria del proyecto / personal (local, en .gitignore)
 README.md                     cómo levantar y probar el proyecto (D55)
+Dockerfile · docker-compose.yml   imagen de la API y entorno local
 .github/                      CI y plantilla de PR
 specs/<feature>/              requirements.md, design.md, tasks.md
 alembic/versions/             migraciones

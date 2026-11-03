@@ -36,16 +36,18 @@ El CI de GitHub Actions corre lo mismo en cada Pull Request.
 
 ## Entorno local (Docker)
 
-Levanta PostgreSQL 18, MinIO (con el bucket de fotos ya creado) y Mailpit.
+Levanta la API, PostgreSQL 18, MinIO (con el bucket de fotos ya creado) y
+Mailpit.
 
 ```powershell
 copy .env.example .env      # la primera vez; luego cambia las contraseñas
-docker compose up -d
-docker compose ps           # db, minio y mailpit deben decir "healthy"
+docker compose up -d --build
+docker compose ps           # api, db, minio y mailpit deben decir "healthy"
 ```
 
 | Servicio | Dónde |
 |---|---|
+| API | http://localhost:8001/health · documentación en http://localhost:8001/docs |
 | PostgreSQL | `localhost:5433` (usuario, clave y base del `.env`) |
 | Consola de MinIO | http://localhost:9011 |
 | API S3 de MinIO | http://localhost:9010 |
@@ -55,11 +57,34 @@ docker compose ps           # db, minio y mailpit deben decir "healthy"
 - Apagar: `docker compose down` (los datos se conservan)
 - Borrar también los datos: `docker compose down -v` (¡no se puede deshacer!)
 
-Si un puerto ya está ocupado en tu PC, cámbialo en tu `.env`.
+La API se recarga sola cuando guardas un archivo de `app/`. Si cambias
+`requirements.txt` o el `Dockerfile`, vuelve a ejecutar
+`docker compose up -d --build`.
 
-## Cómo levantar la API
+### Si falla con "ports are not available"
 
-Se completa con `feat/app-skeleton` y `feat/db-initial-migration`.
+Otro programa ya usa ese puerto en tu PC. Revisa, en este orden:
+
+1. **Contenedores viejos** (por ejemplo, del código anterior):
+   `docker ps -a`. Si ves alguno que no es de este proyecto usando los mismos
+   puertos, detenlo y bórralo desde Docker Desktop o con
+   `docker rm -f <nombre>`.
+2. **Otro PostgreSQL instalado en Windows** en el puerto 5433:
+   `netstat -ano | findstr :5433`. Detén ese servicio o cambia
+   `POSTGRES_HOST_PORT` en tu `.env`.
+3. Lo mismo vale para los demás puertos del `.env` (8001, 9010, 9011, 1025,
+   8025).
+
+## API sin Docker (opcional)
+
+Con el entorno virtual activado y la base levantada por Docker:
+
+```powershell
+pip install -r requirements-dev.txt
+uvicorn app.main:create_app --factory --reload
+```
+
+Lee la configuración de tu `.env` y queda en http://localhost:8000.
 
 ## Cómo contribuir
 

@@ -1,0 +1,5 @@
+# Dependencias de la API. Versiones fijadas para que los 3 integrantes, el CI
+# y la imagen Docker usen exactamente lo mismo.
+fastapi==0.143.5
+uvicorn[standard]==0.54.0
+pydantic-settings==2.16.0
