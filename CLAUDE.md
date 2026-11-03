@@ -75,9 +75,19 @@ los tres lo deciden.
 
 ## 4. Comandos
 
-Se completan a medida que entran los PR de `chore/docker-compose`,
-`feat/app-skeleton` y `feat/db-initial-migration`. No inventes comandos que el
-repositorio todavía no tiene.
+```bash
+pip install -r requirements-dev.txt   # herramientas (versiones fijadas)
+ruff check .                          # lint
+ruff format .                         # formato (el CI usa --check)
+pytest                                # pruebas
+```
+
+El resto se completa con los PR de `chore/docker-compose`, `feat/app-skeleton`
+y `feat/db-initial-migration`. No inventes comandos que el repositorio todavía
+no tiene.
+
+El CI (`.github/workflows/ci.yml`) corre `ruff` y `pytest` en cada PR; los dos
+deben pasar antes de fusionar (D61).
 
 ## 5. Estructura (respétala)
 

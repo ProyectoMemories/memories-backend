@@ -11,6 +11,28 @@ levantar y probar el proyecto. Las reglas para trabajar con Claude Code están e
 El código anterior, escrito con el PRD v3.0, se conserva en el tag
 `legacy-prd-v3.0`.
 
+## Requisitos
+
+- Python 3.12
+
+## Calidad: lint y pruebas
+
+Windows (PowerShell), desde la carpeta del repositorio:
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+ruff check .
+ruff format --check .
+pytest
+```
+
+macOS o Linux: igual, pero `python3.12 -m venv .venv` y
+`source .venv/bin/activate`.
+
+El CI de GitHub Actions corre lo mismo en cada Pull Request.
+
 ## Cómo levantarlo
 
 Se completa con los PR de `chore/docker-compose`, `feat/app-skeleton` y
