@@ -98,8 +98,18 @@ uvicorn app.main:create_app --factory --reload   # API sin Docker
 `docker compose down -v` borra los datos: **pide confirmación antes de
 usarlo** (§10).
 
-Los comandos de migraciones se agregan con `feat/db-initial-migration`. No
-inventes comandos que el repositorio todavía no tiene.
+```bash
+docker compose exec api alembic upgrade head    # aplicar migraciones
+docker compose exec api alembic current         # versión aplicada
+alembic revision -m "descripcion"               # nueva migración (vacía, a mano)
+```
+
+- Las migraciones se escriben **a mano** (§8): nunca `--autogenerate`.
+- Las pruebas de `tests/db/` corren contra PostgreSQL real y usan la base de
+  `TEST_DATABASE_URL`, que debe terminar en `_test`. Para comprobar una
+  restricción usa `assert_violates(conn, "nombre_de_la_restriccion", sql)`.
+
+No inventes comandos que el repositorio todavía no tiene.
 
 El CI (`.github/workflows/ci.yml`) corre `ruff`, `pytest` y `docker-compose`
 (levanta el entorno y comprueba cada servicio) en cada PR; deben pasar antes de
@@ -113,7 +123,7 @@ README.md                     cómo levantar y probar el proyecto (D55)
 Dockerfile · docker-compose.yml   imagen de la API y entorno local
 .github/                      CI y plantilla de PR
 specs/<feature>/              requirements.md, design.md, tasks.md
-alembic/versions/             migraciones
+alembic.ini · alembic/versions/   migraciones (0001 = modelo v1.4)
 tests/                        espejo de app/
 app/
 ├── main.py                   app FastAPI y montaje de routers

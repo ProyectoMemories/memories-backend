@@ -16,11 +16,13 @@ services:
     environment:
       APP_ENV: development
       WEB_APP_ORIGIN: ${WEB_APP_ORIGIN:?Copia .env.example a .env}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       # En Windows los cambios de una carpeta montada no avisan al contenedor;
       # con esto el recargador revisa los archivos cada cierto tiempo.
       WATCHFILES_FORCE_POLLING: "true"
     volumes:
       - ./app:/srv/app
+      - ./alembic:/srv/alembic
     ports:
       - "127.0.0.1:${API_HOST_PORT:-8001}:8000"
     depends_on:
