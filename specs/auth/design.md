@@ -31,13 +31,12 @@ firmados** de vida corta (RN-19), igual que en el modelo físico.
 | `POST /auth/password/reset` | Token + contraseña nueva; revoca todas las sesiones | HU-06 |
 | `POST /auth/password/change` | Contraseña actual + nueva; revoca todas las sesiones | HU-07 |
 
-### Registro y verificación (PR `feat/auth-register`)
-
-[PROPUESTA] Detalles que el spec no fijaba:
+### Registro y verificación (D65)
 
 - El cliente manda `accepts_privacy_policy: true`; la API guarda la versión
-  vigente, que viene de la variable `PRIVACY_POLICY_VERSION` (RN-50).
-- Un campo desconocido, como `is_superuser`, responde 422 (D28).
+  vigente, que viene de la variable `PRIVACY_POLICY_VERSION` (RN-50, D65).
+- Un campo desconocido, como `is_superuser`, responde 422 (D28, D65).
+- SQLAlchemy síncrono (D65).
 - Respuestas: `register` 201 con `id`, `username`, `email` y `status`;
   `verify-email` 204; `resend` 202 sin cuerpo.
 - Códigos de error: `username_taken` y `email_taken` (409); `underage`,
@@ -45,17 +44,40 @@ firmados** de vida corta (RN-19), igual que en el modelo físico.
   `validation_error` (422); `expired_token` e `invalid_token` (400);
   `too_many_requests` (429, con `Retry-After`).
 - El enlace del correo abre la app web en `/verify-email?token=...`; esa
-  pantalla llama a `verify-email`.
+  pantalla llama a `verify-email` (D65). El enlace que abre la app en Android
+  se define con el frontend.
 - Si el correo no se puede enviar, la cuenta queda creada y se registra el
   error (sin el enlace); la persona puede pedir otro.
+
+### Login, refresh y logout
+
+- `login` recibe `identifier` (correo o nombre de usuario), `password`,
+  `platform` (`android` o `web`) y `device_name` opcional. Responde 200 con
+  `access_token`, `token_type: "bearer"` y `expires_in` (segundos); en
+  Android, además, `refresh_token`.
+- `refresh` en Android recibe `{"refresh_token": "..."}`; en web no lleva
+  cuerpo y usa la cookie. Responde igual que `login`.
+- `logout` responde 204 siempre (idempotente); en web, además, borra la
+  cookie.
+- El canal debe coincidir con la plataforma de la sesión: un token de una
+  sesión `web` no sirve en el cuerpo, ni uno de `android` en la cookie.
+- Códigos: `invalid_credentials` (401, genérico), `email_not_verified` y
+  `account_suspended` (403, solo con la contraseña correcta, D62-E),
+  `invalid_refresh_token` (401), `origin_not_allowed` (403),
+  `not_authenticated` y `access_token_expired` (401, con
+  `WWW-Authenticate: Bearer`). La app renueva el token solo con
+  `access_token_expired`.
+- Para no revelar si la cuenta existe por el tiempo de respuesta, un login con
+  un usuario inexistente igual calcula un hash.
 
 ### Cómo viaja el token de renovación (D56)
 
 - **Android:** en el cuerpo de la respuesta de `login` y `refresh`; el cliente
   lo guarda en el almacenamiento seguro y lo manda en el cuerpo de `refresh` y
   `logout`.
-- **Web:** en una cookie `HttpOnly`, `Secure`, `SameSite` con `Path` limitado a
-  `/api/v1/auth`. No aparece en el cuerpo de la respuesta.
+- **Web:** en la cookie `memories_refresh`, `HttpOnly`, `Secure`,
+  `SameSite=Strict`, con `Path` limitado a `/api/v1/auth` y vida de 30 días. No
+  aparece en el cuerpo de la respuesta.
 - La plataforma la declara el cliente al iniciar sesión (`platform`, más un
   `device_name` opcional) y queda guardada en la sesión.
 
@@ -64,13 +86,20 @@ firmados** de vida corta (RN-19), igual que en el modelo físico.
 - `refresh` y `logout` en web revisan la cabecera `Origin` y la comparan con el
   dominio de la app web (variable de entorno). Si no coincide, se rechaza.
 - CORS solo permite ese dominio, con credenciales. Nunca `*`.
-- [PROPUESTA] `SameSite=Strict` si la API y la app web comparten el mismo sitio
-  registrable; `Lax` si no. Se decide al definir los dominios de despliegue.
+- [PROPUESTA] `SameSite=Strict`: en local la API (`localhost:8001`) y la app
+  web (`localhost:3000`) son el mismo sitio (el puerto no cuenta). Si al
+  desplegar quedan en sitios distintos, se revisa junto con los dominios.
+- Sin cabecera `Origin`, o con otro origen, `refresh` y `logout` por cookie
+  responden 403 `origin_not_allowed`.
 
 ## 3. Reglas de sesión (D56, RN-67)
 
-- **Token de acceso:** JWT de 15 minutos con `sub` (id de usuario) y `sid`
-  (id de sesión). No se guarda.
+- **Token de acceso:** JWT de 15 minutos con `sub` (id de usuario), `sid`
+  (id de sesión) y `type: "access"`. No se guarda. Usa la misma `SECRET_KEY`
+  que los tokens del correo, así que la API rechaza todo token sin
+  `type: "access"`: un enlace de verificación nunca sirve como token de
+  acceso. Y al revés, un token de acceso no sirve como enlace, porque no lleva
+  `purpose`.
 - **Token de renovación:** `<id de sesión>.<secreto aleatorio>`. Se guarda solo
   el hash del secreto.
 - **Rotación:** en cada `refresh` se genera un secreto nuevo, se reemplaza el
@@ -118,6 +147,8 @@ app/modules/auth/
   de contraseñas comunes incluida en el repositorio. Se valida en el servicio.
 - **Límite de intentos (D62-F):** 5 por minuto por IP en `login`,
   `password/forgot` y `verify-email/resend`, guardado en memoria del proceso.
+  [PENDIENTE registrar en el 01] También en `register`: cada registro envía un
+  correo y sin límite serviría para mandar correos en masa.
 - **Correos (D62-C):** el servicio usa una interfaz `send_email`. En desarrollo
   se envía por SMTP a **Mailpit** (en Docker Compose), que captura los correos
   y los muestra en su web; en los tests, un enviador falso. El proveedor real
@@ -134,7 +165,12 @@ app/modules/auth/
 - **Límite de intentos en memoria:** cada proceso cuenta por separado y se
   pierde al reiniciar. Alcanza para un solo proceso en el MVP; si la API corre
   con varios procesos, el límite real se multiplica.
+- **El token de acceso sigue sirviendo hasta 15 minutos** después de cerrar
+  sesión o cambiar la contraseña: no se guarda, así que no se puede revocar
+  (D56). Lo que sí se revisa en cada petición es que la cuenta siga activa.
 - **Carrera en la rotación:** dos `refresh` simultáneos con el mismo token
   pueden revocar una sesión legítima (por ejemplo, dos pestañas). Es el costo
-  aceptado de detectar reuso; el cliente debe serializar las renovaciones.
+  aceptado de detectar reuso; el cliente debe serializar las renovaciones. En
+  la base, la sesión se lee con `FOR UPDATE` para que dos rotaciones no se
+  pisen.
 - **Reloj:** los vencimientos se calculan en UTC en el servidor.
