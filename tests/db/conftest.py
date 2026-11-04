@@ -1,88 +1,13 @@
-"""Pruebas contra un PostgreSQL real (CLAUDE.md §11).
+"""Pruebas de la base: restricciones y datos mínimos.
 
-Usan una base aparte, cuyo nombre debe terminar en `_test`: se borra y se crea
-de nuevo en cada corrida, así que nunca tocan tus datos de desarrollo.
+Los fixtures que crean la base de pruebas están en tests/conftest.py.
 """
 
-import os
 import uuid
 from collections.abc import Iterator
-from pathlib import Path
 
 import psycopg
 import pytest
-from alembic import command
-from alembic.config import Config
-from psycopg import sql
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from sqlalchemy.engine import make_url
-
-ROOT = Path(__file__).resolve().parents[2]
-
-
-class _TestDatabaseSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-
-    test_database_url: str | None = None
-
-
-def _alembic_config(url: str) -> Config:
-    config = Config(str(ROOT / "alembic.ini"))
-    config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
-    config.attributes["configure_logger"] = False
-    return config
-
-
-def _libpq_url(url: str) -> str:
-    """psycopg no entiende el prefijo `postgresql+psycopg://` de SQLAlchemy."""
-    return (
-        make_url(url).set(drivername="postgresql").render_as_string(hide_password=False)
-    )
-
-
-@pytest.fixture(scope="session")
-def database_url() -> str:
-    url = _TestDatabaseSettings().test_database_url
-    if not url:
-        if os.environ.get("CI"):
-            pytest.fail("En el CI falta TEST_DATABASE_URL")
-        pytest.skip(
-            "Falta TEST_DATABASE_URL en tu .env. Levanta la base con "
-            "`docker compose up -d db` (ver README)."
-        )
-
-    name = make_url(url).database or ""
-    if not name.endswith("_test"):
-        pytest.fail(f"La base de pruebas debe terminar en '_test' (es '{name}')")
-
-    # Se recrea la base desde cero conectándose a la base 'postgres'.
-    admin_url = _libpq_url(
-        make_url(url).set(database="postgres").render_as_string(hide_password=False)
-    )
-    try:
-        with psycopg.connect(admin_url, autocommit=True) as admin:
-            admin.execute(
-                sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
-                    sql.Identifier(name)
-                )
-            )
-            admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
-    except psycopg.OperationalError as error:
-        if os.environ.get("CI"):
-            raise
-        pytest.skip(f"No se pudo conectar a PostgreSQL: {error}")
-    return url
-
-
-@pytest.fixture(scope="session")
-def alembic_config(database_url: str) -> Config:
-    return _alembic_config(database_url)
-
-
-@pytest.fixture(scope="session")
-def migrated_db(database_url: str, alembic_config: Config) -> str:
-    command.upgrade(alembic_config, "head")
-    return _libpq_url(database_url)
 
 
 @pytest.fixture

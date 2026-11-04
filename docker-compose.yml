@@ -17,6 +17,13 @@ services:
       APP_ENV: development
       WEB_APP_ORIGIN: ${WEB_APP_ORIGIN:?Copia .env.example a .env}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Si faltan, copia de nuevo .env.example a .env.
+      SECRET_KEY: "${SECRET_KEY:?Falta SECRET_KEY en .env}"
+      PRIVACY_POLICY_VERSION: "${PRIVACY_POLICY_VERSION:?Falta PRIVACY_POLICY_VERSION en .env}"
+      EMAIL_FROM: "${EMAIL_FROM:-Memories <no-reply@memories.local>}"
+      # Los correos van a Mailpit, dentro de la red de Docker.
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
       # En Windows los cambios de una carpeta montada no avisan al contenedor;
       # con esto el recargador revisa los archivos cada cierto tiempo.
       WATCHFILES_FORCE_POLLING: "true"

@@ -128,6 +128,10 @@ tests/                        espejo de app/
 app/
 ├── main.py                   app FastAPI y montaje de routers
 ├── config.py                 configuración por variables de entorno
+├── db.py                     sesión de SQLAlchemy, Base de los modelos, ids UUIDv7
+├── errors.py                 AppError y formato {code, message}
+├── email.py                  envío de correos (SMTP; Mailpit en local)
+├── rate_limit.py             límite de intentos por IP, en memoria (D62-F)
 ├── storage/                  puerto de almacenamiento + adaptador S3
 └── modules/<modulo>/         auth, users, albums, memories
     ├── router.py             HTTP: valida entrada, llama al servicio
@@ -136,6 +140,9 @@ app/
     ├── models.py             modelos SQLAlchemy
     └── schemas.py            esquemas Pydantic de entrada y salida
 ```
+
+Un módulo puede tener archivos de apoyo de su dominio (por ejemplo,
+`auth/passwords.py` y `auth/tokens.py`), siempre sin FastAPI ni base de datos.
 
 - No crees carpetas ni archivos de primer nivel sin preguntar.
 - Nunca subas `.env`, `CLAUDE.local.md` ni `.claude/settings.local.json`.

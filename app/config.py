@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,7 +28,21 @@ class Settings(DatabaseSettings):
 
     # Único origen al que CORS deja llamar a la API: el de la app web
     # (CLAUDE.md §9). Es obligatorio para que nadie despliegue sin pensarlo.
+    # También es la base de los enlaces que van en los correos.
     web_app_origin: str
+
+    # Firma los tokens (JWT de acceso y enlaces de los correos). Larga y
+    # aleatoria; nunca la misma en desarrollo y en producción.
+    secret_key: str = Field(min_length=32)
+
+    # Versión vigente de la política de privacidad que se acepta al registrarse
+    # (RN-50). El texto de la política está pendiente (P27).
+    privacy_policy_version: str = Field(min_length=1, max_length=50)
+
+    # Correo saliente. En desarrollo apunta a Mailpit (D62-C).
+    smtp_host: str = "localhost"
+    smtp_port: int = 1025
+    email_from: str = "Memories <no-reply@memories.local>"
 
     @field_validator("web_app_origin")
     @classmethod

@@ -7,30 +7,31 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
 
 ## Base
 
-- [ ] Modelos SQLAlchemy de `app_user`, `privacy_consent` y `user_session`
-      (alineados con la migración 0001)
-- [ ] Hash de contraseñas con pwdlib y Argon2 detrás de una interfaz · test:
+- [x] Modelos SQLAlchemy de `app_user` y `privacy_consent` (alineados con la
+      migración 0001)
+- [ ] Modelo SQLAlchemy de `user_session`
+- [x] Hash de contraseñas con pwdlib y Argon2 detrás de una interfaz · test:
       verifica, rechaza y recalcula hashes con parámetros viejos
-- [ ] Validación de contraseña (8 a 64, lista de comunes) · tests: límites y
+- [x] Validación de contraseña (8 a 64, lista de comunes) · tests: límites y
       una contraseña común
 - [ ] Emisión y validación del JWT de acceso (15 min, `sub`, `sid`) · test:
       vencido y alterado se rechazan
-- [ ] Tokens firmados de correo con propósito · test: uno de verificación no
+- [x] Tokens firmados de correo con propósito · test: uno de verificación no
       sirve para recuperar
 
 ## Registro y verificación
 
-- [ ] `POST /auth/register` · tests: datos válidos, menor de 14, sin
+- [x] `POST /auth/register` · tests: datos válidos, menor de 14, sin
       consentimiento, usuario y correo repetidos sin importar mayúsculas,
-      formato de usuario inválido, `is_superuser` ignorado
-- [ ] Interfaz `send_email`: SMTP hacia Mailpit en desarrollo y enviador
+      formato de usuario inválido, `is_superuser` rechazado
+- [x] Interfaz `send_email`: SMTP hacia Mailpit en desarrollo y enviador
       falso en tests
-- [ ] `POST /auth/verify-email` y `/resend` · tests: vigente, vencido,
+- [x] `POST /auth/verify-email` y `/resend` · tests: vigente, vencido,
       alterado, ya verificado
 
 ## Sesión
 
-- [ ] Límite de 5 intentos por minuto por IP, en memoria · test: el sexto
+- [x] Límite de 5 intentos por minuto por IP, en memoria · test: el sexto
       intento se rechaza y pasa al minuto siguiente
 - [ ] `POST /auth/login` (Android y web) · tests: correo y usuario, error
       genérico, `unverified` con contraseña correcta e incorrecta (D62-E),

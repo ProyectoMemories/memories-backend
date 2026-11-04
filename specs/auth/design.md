@@ -31,6 +31,24 @@ firmados** de vida corta (RN-19), igual que en el modelo físico.
 | `POST /auth/password/reset` | Token + contraseña nueva; revoca todas las sesiones | HU-06 |
 | `POST /auth/password/change` | Contraseña actual + nueva; revoca todas las sesiones | HU-07 |
 
+### Registro y verificación (PR `feat/auth-register`)
+
+[PROPUESTA] Detalles que el spec no fijaba:
+
+- El cliente manda `accepts_privacy_policy: true`; la API guarda la versión
+  vigente, que viene de la variable `PRIVACY_POLICY_VERSION` (RN-50).
+- Un campo desconocido, como `is_superuser`, responde 422 (D28).
+- Respuestas: `register` 201 con `id`, `username`, `email` y `status`;
+  `verify-email` 204; `resend` 202 sin cuerpo.
+- Códigos de error: `username_taken` y `email_taken` (409); `underage`,
+  `privacy_policy_not_accepted`, `password_length`, `password_too_common` y
+  `validation_error` (422); `expired_token` e `invalid_token` (400);
+  `too_many_requests` (429, con `Retry-After`).
+- El enlace del correo abre la app web en `/verify-email?token=...`; esa
+  pantalla llama a `verify-email`.
+- Si el correo no se puede enviar, la cuenta queda creada y se registra el
+  error (sin el enlace); la persona puede pedir otro.
+
 ### Cómo viaja el token de renovación (D56)
 
 - **Android:** en el cuerpo de la respuesta de `login` y `refresh`; el cliente
