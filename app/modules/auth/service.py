@@ -1,4 +1,4 @@
-"""Reglas de negocio de auth: registro y verificación del correo (HU-01, HU-02).
+"""Reglas de negocio de auth: registro, verificación y sesiones (HU-01 a HU-05).
 
 No importa FastAPI (CLAUDE.md §7): recibe datos ya validados y lanza AppError.
 """
@@ -13,7 +13,13 @@ from app.db import UniqueViolationError, new_id
 from app.email import EmailMessage, EmailSender
 from app.errors import AppError
 from app.modules.auth import tokens
-from app.modules.auth.models import AccountStatus, AppUser, PrivacyConsent
+from app.modules.auth.models import (
+    AccountStatus,
+    AppUser,
+    ClientPlatform,
+    PrivacyConsent,
+    UserSession,
+)
 from app.modules.auth.passwords import (
     MAX_LENGTH,
     MIN_LENGTH,
@@ -27,6 +33,9 @@ logger = logging.getLogger(__name__)
 
 MIN_AGE_YEARS = 14  # RN-08
 VERIFY_EMAIL_LIFETIME = timedelta(hours=24)  # RN-11
+ACCESS_TOKEN_LIFETIME = timedelta(minutes=15)  # D56
+SESSION_LIFETIME = timedelta(days=30)  # D56, RN-67
+DELETION_GRACE_PERIOD = timedelta(days=30)  # RN-14
 
 
 # ─── Errores ───────────────────────────────────────────────────────────────
@@ -78,6 +87,44 @@ class InvalidTokenError(AppError):
     message = "El enlace no es válido. Pide uno nuevo."
 
 
+class InvalidCredentialsError(AppError):
+    status_code = 401
+    code = "invalid_credentials"
+    # Igual exista o no la cuenta (design.md §6).
+    message = "El usuario o la contraseña no son correctos."
+
+
+class EmailNotVerifiedError(AppError):
+    status_code = 403
+    code = "email_not_verified"
+    message = "Verifica tu correo para entrar. Puedes pedir otro enlace."
+
+
+class AccountSuspendedError(AppError):
+    status_code = 403
+    code = "account_suspended"
+    message = "Tu cuenta está suspendida."
+
+
+class InvalidRefreshTokenError(AppError):
+    status_code = 401
+    code = "invalid_refresh_token"
+    message = "Tu sesión terminó. Vuelve a iniciar sesión."
+
+
+class NotAuthenticatedError(AppError):
+    status_code = 401
+    code = "not_authenticated"
+    message = "Necesitas iniciar sesión."
+    default_headers = {"WWW-Authenticate": "Bearer"}
+
+
+class AccessTokenExpiredError(NotAuthenticatedError):
+    # La app renueva el token solo con este código (design.md §2).
+    code = "access_token_expired"
+    message = "Tu token de acceso venció."
+
+
 _PASSWORD_ERRORS: dict[str, type[AppError]] = {
     "length": PasswordLengthError,
     "common": PasswordTooCommonError,
@@ -101,6 +148,22 @@ class Registration:
     maternal_surname: str | None
     birth_date: date
     accepts_privacy_policy: bool
+
+
+@dataclass(frozen=True)
+class Login:
+    identifier: str
+    password: str
+    platform: ClientPlatform
+    device_name: str | None
+
+
+@dataclass(frozen=True)
+class IssuedTokens:
+    access_token: str
+    expires_in: int  # segundos
+    refresh_token: str
+    platform: ClientPlatform
 
 
 @dataclass(frozen=True)
@@ -205,6 +268,140 @@ class AuthService:
             return
         self._send_verification_email(user, self._clock())
 
+    def login(self, data: Login) -> IssuedTokens:
+        """Abre una sesión para este dispositivo (HU-03, RN-67)."""
+        now = self._clock()
+        user = self._repository.get_user_by_login(data.identifier)
+        if user is None:
+            self._hasher.verify_dummy(data.password)
+            raise InvalidCredentialsError
+
+        valid, new_hash = self._hasher.verify_and_update(
+            data.password, user.password_hash
+        )
+        if not valid:
+            raise InvalidCredentialsError
+        # Desde aquí la contraseña es correcta: se puede decir por qué no entra
+        # (D62-E).
+        self._allow_login(user, now)
+        if new_hash is not None:
+            user.password_hash = new_hash
+
+        secret = tokens.new_refresh_secret()
+        user_session = UserSession(
+            id=new_id(),
+            user_id=user.id,
+            refresh_token_hash=tokens.hash_refresh_secret(secret),
+            platform=data.platform,
+            device_name=data.device_name,
+            created_at=now,
+            last_used_at=now,
+            expires_at=now + SESSION_LIFETIME,
+        )
+        self._repository.add_session(user_session)
+        self._repository.commit()
+        return self._issue(user_session, secret, now)
+
+    def refresh(
+        self, refresh_token: str | None, platform: ClientPlatform
+    ) -> IssuedTokens:
+        """Rota el token de renovación (HU-04, RN-67)."""
+        now = self._clock()
+        if refresh_token is None:
+            raise InvalidRefreshTokenError
+        try:
+            session_id, secret = tokens.parse_refresh_token(refresh_token)
+        except tokens.InvalidTokenError as error:
+            raise InvalidRefreshTokenError from error
+
+        user_session = self._repository.get_session_for_update(session_id)
+        if user_session is None or not _is_usable(user_session, platform, now):
+            raise InvalidRefreshTokenError
+        if not tokens.refresh_secret_matches(secret, user_session.refresh_token_hash):
+            # El secreto ya se rotó: alguien usa un token viejo, quizá robado.
+            user_session.revoked_at = now
+            self._repository.commit()
+            raise InvalidRefreshTokenError
+
+        user = self._repository.get_user(user_session.user_id)
+        if user is None or user.status is not AccountStatus.ACTIVE:
+            raise InvalidRefreshTokenError
+
+        new_secret = tokens.new_refresh_secret()
+        user_session.refresh_token_hash = tokens.hash_refresh_secret(new_secret)
+        user_session.last_used_at = now
+        user_session.expires_at = now + SESSION_LIFETIME
+        self._repository.commit()
+        return self._issue(user_session, new_secret, now)
+
+    def logout(self, refresh_token: str | None, platform: ClientPlatform) -> None:
+        """Revoca la sesión de este dispositivo. Repetirlo no da error (HU-05)."""
+        if refresh_token is None:
+            return
+        try:
+            session_id, secret = tokens.parse_refresh_token(refresh_token)
+        except tokens.InvalidTokenError:
+            return  # No hay sesión que cerrar: el cliente igual borra sus tokens.
+
+        now = self._clock()
+        user_session = self._repository.get_session_for_update(session_id)
+        if (
+            user_session is not None
+            and _is_usable(user_session, platform, now)
+            and tokens.refresh_secret_matches(secret, user_session.refresh_token_hash)
+        ):
+            user_session.revoked_at = now
+            self._repository.commit()
+
+    def authenticate(self, access_token: str) -> AppUser:
+        """Usuario del token de acceso. Exige que la cuenta siga activa (RN-67)."""
+        try:
+            user_id, _ = tokens.read_access_token(access_token, self._config.secret_key)
+        except tokens.ExpiredTokenError as error:
+            raise AccessTokenExpiredError from error
+        except tokens.InvalidTokenError as error:
+            raise NotAuthenticatedError from error
+
+        user = self._repository.get_user(user_id)
+        if user is None or user.status is not AccountStatus.ACTIVE:
+            raise NotAuthenticatedError
+        return user
+
+    def _allow_login(self, user: AppUser, now: datetime) -> None:
+        match user.status:
+            case AccountStatus.UNVERIFIED:
+                raise EmailNotVerifiedError  # RN-11
+            case AccountStatus.SUSPENDED:
+                raise AccountSuspendedError  # RN-17
+            case AccountStatus.DEACTIVATED:
+                user.status = AccountStatus.ACTIVE  # RN-68
+            case AccountStatus.PENDING_DELETION:
+                requested_at = user.deletion_requested_at
+                if requested_at and now - requested_at >= DELETION_GRACE_PERIOD:
+                    # Ya venció el plazo; solo falta que la borre la purga diaria.
+                    raise InvalidCredentialsError
+                user.status = AccountStatus.ACTIVE  # RN-14: se cancela
+                user.deletion_requested_at = None
+            case AccountStatus.ACTIVE:
+                pass
+
+    def _issue(
+        self, user_session: UserSession, secret: str, now: datetime
+    ) -> IssuedTokens:
+        access_token = tokens.create_access_token(
+            user_session.user_id,
+            user_session.id,
+            ACCESS_TOKEN_LIFETIME,
+            self._config.secret_key,
+            now,
+        )
+        return IssuedTokens(
+            access_token=access_token,
+            expires_in=int(ACCESS_TOKEN_LIFETIME.total_seconds()),
+            refresh_token=tokens.format_refresh_token(user_session.id, secret),
+            platform=user_session.platform,
+        )
+
     def _check_password(self, password: str) -> None:
         problem = password_problem(password)
         if problem is not None:
@@ -238,3 +435,14 @@ class AuthService:
             # La cuenta ya quedó guardada; la persona puede pedir otro enlace.
             # No se registra el enlace: contiene el token.
             logger.exception("No se pudo enviar el correo de verificación")
+
+
+def _is_usable(
+    user_session: UserSession, platform: ClientPlatform, now: datetime
+) -> bool:
+    """Sesión vigente, sin revocar y usada por el mismo canal en que se abrió."""
+    return (
+        user_session.revoked_at is None
+        and user_session.expires_at > now
+        and user_session.platform is platform
+    )

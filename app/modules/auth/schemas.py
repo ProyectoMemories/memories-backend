@@ -3,7 +3,7 @@
 import re
 import uuid
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
     AfterValidator,
@@ -15,7 +15,7 @@ from pydantic import (
 )
 from pydantic_core import PydanticCustomError
 
-from app.modules.auth.models import AccountStatus
+from app.modules.auth.models import AccountStatus, ClientPlatform
 
 _USERNAME_CHARS = re.compile(r"^[A-Za-z0-9._]+$")
 
@@ -75,3 +75,33 @@ class VerifyEmailRequest(BaseModel):
 
 class ResendVerificationRequest(BaseModel):
     email: Annotated[str, Field(min_length=1, max_length=254)]
+
+
+class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Correo o nombre de usuario, sin importar mayúsculas (RN-06).
+    identifier: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=254)
+    ]
+    password: Annotated[str, Field(min_length=1, max_length=1024)]
+    platform: ClientPlatform
+    device_name: Name | None = None
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"  # noqa: S105 (es el tipo, no un secreto)
+    expires_in: int = Field(description="Segundos que dura el token de acceso.")
+    refresh_token: str | None = Field(
+        default=None,
+        description="Solo en Android. En web viaja en una cookie httpOnly.",
+    )
+
+
+class RefreshTokenRequest(BaseModel):
+    """Solo Android. En web el cuerpo va vacío y se usa la cookie."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    refresh_token: Annotated[str, Field(min_length=1, max_length=200)]

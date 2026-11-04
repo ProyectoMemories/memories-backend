@@ -21,6 +21,7 @@ class PasswordHasher:
 
     def __init__(self, hasher: Argon2Hasher | None = None) -> None:
         self._password_hash = PasswordHash((hasher or Argon2Hasher(),))
+        self._dummy_hash: str | None = None
 
     def hash(self, password: str) -> str:
         return self._password_hash.hash(password)
@@ -30,6 +31,15 @@ class PasswordHasher:
     ) -> tuple[bool, str | None]:
         """Devuelve si coincide y, si el hash usa parámetros viejos, uno nuevo."""
         return self._password_hash.verify_and_update(password, password_hash)
+
+    def verify_dummy(self, password: str) -> None:
+        """Gasta lo mismo que una verificación real cuando la cuenta no existe.
+
+        Así el tiempo de respuesta del login no revela qué cuentas existen.
+        """
+        if self._dummy_hash is None:
+            self._dummy_hash = self.hash("cuenta-que-no-existe")
+        self._password_hash.verify(password, self._dummy_hash)
 
 
 @lru_cache

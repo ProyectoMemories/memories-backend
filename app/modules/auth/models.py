@@ -1,4 +1,4 @@
-"""Modelos de app_user y privacy_consent, alineados con la migración 0001."""
+"""Modelos de app_user, privacy_consent y user_session (migración 0001)."""
 
 import uuid
 from datetime import date, datetime
@@ -20,6 +20,23 @@ class AccountStatus(StrEnum):
     SUSPENDED = "suspended"
 
 
+class ClientPlatform(StrEnum):
+    """Dónde se inició la sesión (D51, D56)."""
+
+    ANDROID = "android"
+    WEB = "web"
+
+
+def _pg_enum(enum: type[StrEnum], name: str) -> Enum:
+    # El tipo ya lo crea la migración; aquí solo se usa.
+    return Enum(
+        enum,
+        name=name,
+        create_type=False,
+        values_callable=lambda members: [member.value for member in members],
+    )
+
+
 class AppUser(Base):
     __tablename__ = "app_user"
 
@@ -32,13 +49,7 @@ class AppUser(Base):
     maternal_surname: Mapped[str | None]
     birth_date: Mapped[date]
     status: Mapped[AccountStatus] = mapped_column(
-        # El tipo ya lo crea la migración; aquí solo se usa.
-        Enum(
-            AccountStatus,
-            name="account_status",
-            create_type=False,
-            values_callable=lambda statuses: [status.value for status in statuses],
-        )
+        _pg_enum(AccountStatus, "account_status")
     )
     # FetchedValue: los pone la base (DEFAULT o trigger), no el ORM.
     is_superuser: Mapped[bool] = mapped_column(server_default=FetchedValue())
@@ -61,3 +72,21 @@ class PrivacyConsent(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("app_user.id"))
     policy_version: Mapped[str]
     accepted_at: Mapped[datetime]
+
+
+class UserSession(Base):
+    """Una sesión por dispositivo; guarda solo el hash del token de renovación."""
+
+    __tablename__ = "user_session"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("app_user.id"))
+    refresh_token_hash: Mapped[str]
+    platform: Mapped[ClientPlatform] = mapped_column(
+        _pg_enum(ClientPlatform, "client_platform")
+    )
+    device_name: Mapped[str | None]
+    created_at: Mapped[datetime]
+    last_used_at: Mapped[datetime]
+    expires_at: Mapped[datetime]
+    revoked_at: Mapped[datetime | None]

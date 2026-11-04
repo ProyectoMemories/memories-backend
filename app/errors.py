@@ -27,10 +27,11 @@ class AppError(Exception):
     status_code = 400
     code = "bad_request"
     message = "La petición no es válida."
+    default_headers: dict[str, str] | None = None
 
     def __init__(self, headers: dict[str, str] | None = None) -> None:
         super().__init__(self.message)
-        self.headers = headers
+        self.headers = headers or self.default_headers
 
 
 class TooManyRequestsError(AppError):
