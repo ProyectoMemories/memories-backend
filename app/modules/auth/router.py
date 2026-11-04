@@ -42,9 +42,11 @@ Service = Annotated[AuthService, Depends(get_auth_service)]
 @router.post(
     "/register",
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_by_ip("register"))],
     responses={
         409: {"model": ErrorResponse, "description": "Usuario o correo en uso"},
         422: {"model": ValidationErrorResponse, "description": "Datos inválidos"},
+        429: {"model": ErrorResponse, "description": "Demasiados intentos"},
     },
 )
 def register(body: RegisterRequest, service: Service) -> UserResponse:

@@ -321,3 +321,16 @@ def test_si_el_correo_falla_la_cuenta_queda_y_se_puede_reenviar(
     assert response.status_code == 201
     assert "No se pudo enviar el correo" in caplog.text
     assert "token=" not in caplog.text
+
+
+def test_sexto_registro_en_un_minuto_se_rechaza(db_client: TestClient) -> None:
+    for number in range(5):
+        data = _registration(username=f"persona{number}", email=f"p{number}@correo.com")
+        assert db_client.post(REGISTER, json=data).status_code == 201
+
+    response = db_client.post(
+        REGISTER, json=_registration(username="persona5", email="p5@correo.com")
+    )
+
+    assert response.status_code == 429
+    assert response.json()["code"] == "too_many_requests"
