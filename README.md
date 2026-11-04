@@ -191,7 +191,52 @@ cuenta. Solo llega un correo nuevo si la cuenta sigue sin verificar. La sexta
 vez en un minuto responde **429**.
 
 Los errores llegan como `{"code": "...", "message": "..."}`; por ejemplo,
-`username_taken`, `underage` o `password_too_common`.
+`username_taken`, `underage` o `password_too_common`. El registro también
+acepta 5 por minuto desde la misma IP.
+
+### Iniciar sesión como Android
+
+Con la cuenta ya verificada, en **`POST /api/v1/auth/login`**:
+
+```json
+{
+  "identifier": "ana.rios",
+  "password": "caballo bateria grapa",
+  "platform": "android",
+  "device_name": "Pixel de prueba"
+}
+```
+
+`identifier` acepta el correo o el nombre de usuario, sin importar
+mayúsculas. Debe responder **200** con `access_token` (15 minutos),
+`expires_in: 900` y `refresh_token`. En DBeaver, la tabla `user_session` tiene
+una fila nueva con `platform = android` y solo el **hash** del token.
+
+- **Renovar** (`POST /api/v1/auth/refresh`) con
+  `{"refresh_token": "<el que recibiste>"}`: **200** con tokens nuevos.
+- **Reuso:** vuelve a mandar el token **anterior**: **401**
+  `invalid_refresh_token`, y la sesión queda revocada (`revoked_at` lleno). Ni
+  siquiera el token nuevo sirve ya: hay que volver a iniciar sesión.
+- **Cerrar sesión** (`POST /api/v1/auth/logout`) con
+  `{"refresh_token": "..."}`: **204**, y repetirlo también da 204.
+
+Errores del login: contraseña incorrecta o cuenta inexistente → **401**
+`invalid_credentials` (el mismo mensaje en los dos casos); cuenta sin verificar
+con la contraseña correcta → **403** `email_not_verified`; la sexta vez en un
+minuto → **429**.
+
+### Iniciar sesión como web
+
+Igual, pero con `"platform": "web"`. La respuesta **no** trae
+`refresh_token`: va en la cookie `memories_refresh`, que el código de la página
+no puede leer. Para verla: F12 → **Application** → **Cookies** →
+`http://localhost:8001` (marcada como HttpOnly, Secure y SameSite Strict).
+
+Si ahora pruebas **`refresh`** desde /docs **sin cuerpo**, responde **403**
+`origin_not_allowed`: /docs vive en `localhost:8001` y la API solo acepta la
+cookie desde la app web (`WEB_APP_ORIGIN`, `localhost:3000`). Esa es la
+protección CSRF funcionando. La renovación web de punta a punta se prueba con
+la app Flutter.
 
 ## Ver las tablas con DBeaver
 
