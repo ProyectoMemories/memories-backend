@@ -98,6 +98,10 @@ Funciona tal cual en local. Si cambias `POSTGRES_PASSWORD`, cámbiala también
 dentro de `DATABASE_URL` y `TEST_DATABASE_URL`. El `.env` nunca se sube a
 GitHub.
 
+`SECRET_KEY` firma los tokens de sesión y de los correos. El valor de ejemplo
+sirve en tu PC; si quieres una propia:
+`python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+
 ### 6. Levanta Docker
 
 Con Docker Desktop abierto:
@@ -142,10 +146,52 @@ levantada o falta `TEST_DATABASE_URL` en tu `.env`.
 | API | http://localhost:8001/health | `{"status":"ok"}` |
 | Documentación de la API | http://localhost:8001/docs | La documentación interactiva |
 | MinIO | http://localhost:9011 | Entra con `MINIO_ROOT_USER` y `MINIO_ROOT_PASSWORD` del `.env`; debe estar el bucket `memories-photos` |
-| Mailpit | http://localhost:8025 | La bandeja de correos (vacía por ahora) |
+| Mailpit | http://localhost:8025 | La bandeja de correos que envía la API |
 
-Listo: estás al día. Para apagar todo, `docker compose down` (conserva los
-datos).
+Listo: estás al día. Para probar el registro, sigue
+[Probar la API desde /docs](#probar-la-api-desde-docs). Para apagar todo,
+`docker compose down` (conserva los datos).
+
+## Probar la API desde /docs
+
+Con Docker levantado y las tablas creadas (pasos 6 y 7), abre
+http://localhost:8001/docs. En cada endpoint: **Try it out** → edita el
+cuerpo → **Execute**.
+
+**Registrarse** (`POST /api/v1/auth/register`):
+
+```json
+{
+  "username": "ana.rios",
+  "email": "ana@correo.com",
+  "password": "caballo bateria grapa",
+  "first_name": "Ana",
+  "paternal_surname": "Ríos",
+  "maternal_surname": null,
+  "birth_date": "2000-05-17",
+  "accepts_privacy_policy": true
+}
+```
+
+Debe responder **201** con la cuenta en `"status": "unverified"`.
+
+**Ver el correo en Mailpit:** abre http://localhost:8025. Llega
+"Confirma tu correo en Memories" para `ana@correo.com`. El enlace apunta a la
+app web (`http://localhost:3000/verify-email?token=...`), que todavía no
+existe: no lo abras, **copia lo que va después de `token=`**.
+
+**Verificar el correo** (`POST /api/v1/auth/verify-email`): pega el token en
+`{"token": "..."}`. Debe responder **204** y, en DBeaver, la cuenta queda en
+`active` con `email_verified_at` lleno. Repetirlo vuelve a dar 204 y no cambia
+nada.
+
+**Reenviar el enlace** (`POST /api/v1/auth/verify-email/resend`) con
+`{"email": "ana@correo.com"}`: responde **202** siempre, exista o no la
+cuenta. Solo llega un correo nuevo si la cuenta sigue sin verificar. La sexta
+vez en un minuto responde **429**.
+
+Los errores llegan como `{"code": "...", "message": "..."}`; por ejemplo,
+`username_taken`, `underage` o `password_too_common`.
 
 ## Ver las tablas con DBeaver
 
