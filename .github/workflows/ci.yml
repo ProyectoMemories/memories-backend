@@ -116,7 +116,7 @@ jobs:
           docker compose exec -T api alembic upgrade head
           docker compose exec -T db psql -U memories -d memories -tAc \
             "select count(*) from pg_tables where schemaname = 'public'" | tee tables.txt
-          # 16 tablas del modelo v1.4 + alembic_version
+          # 16 tablas del modelo v1.5 + alembic_version
           grep -qx 17 tables.txt
       - name: Logs si algo falló
         if: failure()

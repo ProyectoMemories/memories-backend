@@ -1,4 +1,4 @@
-"""Restricciones clave del modelo físico v1.4.
+"""Restricciones clave del modelo físico v1.5.
 
 Cada prueba confirma que la base rechaza un dato inválido con la restricción
 exacta del modelo, o que un borrado hace lo que dicen las reglas de negocio.
@@ -82,6 +82,39 @@ def test_updated_at_se_actualiza_solo(conn: psycopg.Connection) -> None:
 
     # El trigger reemplaza cualquier valor por now() en cada UPDATE.
     assert updated_at.year > 2000
+
+
+def test_editar_foto_y_cambiar_rol_actualizan_updated_at(
+    conn: psycopg.Connection,
+) -> None:
+    # D64: la fecha y el lugar de una foto se pueden editar (photo.updated_at) y
+    # el dueño puede cambiar el rol de un miembro (RN-69, album_member.updated_at).
+    owner_id = new_user(conn)
+    member_id = new_user(conn)
+    album_id = new_album(conn, owner_id)
+    photo_id = new_photo(conn, album_id, owner_id)
+    conn.execute(
+        "INSERT INTO album_member (album_id, user_id, role, updated_at) "
+        "VALUES (%s, %s, 'viewer', '2000-01-01')",
+        (album_id, member_id),
+    )
+    conn.execute(
+        "UPDATE photo SET updated_at = '2000-01-01' WHERE id = %s", (photo_id,)
+    )
+    conn.execute(
+        "UPDATE album_member SET role = 'editor' WHERE album_id = %s AND user_id = %s",
+        (album_id, member_id),
+    )
+
+    (photo_updated_at,) = conn.execute(
+        "SELECT updated_at FROM photo WHERE id = %s", (photo_id,)
+    ).fetchone()
+    (member_updated_at,) = conn.execute(
+        "SELECT updated_at FROM album_member WHERE album_id = %s AND user_id = %s",
+        (album_id, member_id),
+    ).fetchone()
+    assert photo_updated_at.year > 2000
+    assert member_updated_at.year > 2000
 
 
 # ─── Sesiones (D56) ───────────────────────────────────────────────────────
