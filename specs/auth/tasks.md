@@ -9,13 +9,14 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
 
 - [x] Modelos SQLAlchemy de `app_user` y `privacy_consent` (alineados con la
       migración 0001)
-- [ ] Modelo SQLAlchemy de `user_session`
+- [x] Modelo SQLAlchemy de `user_session`
 - [x] Hash de contraseñas con pwdlib y Argon2 detrás de una interfaz · test:
       verifica, rechaza y recalcula hashes con parámetros viejos
 - [x] Validación de contraseña (8 a 64, lista de comunes) · tests: límites y
       una contraseña común
-- [ ] Emisión y validación del JWT de acceso (15 min, `sub`, `sid`) · test:
-      vencido y alterado se rechazan
+- [x] Emisión y validación del JWT de acceso (15 min, `sub`, `sid`,
+      `type: "access"`) · tests: vencido, alterado y sin `type` se rechazan;
+      un enlace de verificación no sirve como token de acceso
 - [x] Tokens firmados de correo con propósito · test: uno de verificación no
       sirve para recuperar
 
@@ -33,17 +34,19 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
 
 - [x] Límite de 5 intentos por minuto por IP, en memoria · test: el sexto
       intento se rechaza y pasa al minuto siguiente
-- [ ] `POST /auth/login` (Android y web) · tests: correo y usuario, error
+- [x] Límite de intentos también en `POST /auth/register` · test: el sexto
+      registro en un minuto se rechaza
+- [x] `POST /auth/login` (Android y web) · tests: correo y usuario, error
       genérico, `unverified` con contraseña correcta e incorrecta (D62-E),
       `suspended`, `deactivated` se reactiva,
       `pending_deletion` se cancela
-- [ ] Dependencia "usuario actual" que exige cuenta activa · test: un usuario
+- [x] Dependencia "usuario actual" que exige cuenta activa · test: un usuario
       suspendido con JWT vigente es rechazado
-- [ ] `POST /auth/refresh` · tests: rota, vencido, revocado, **reuso revoca la
+- [x] `POST /auth/refresh` · tests: rota, vencido, revocado, **reuso revoca la
       sesión**
-- [ ] Cookie y revisión de `Origin` en web · tests: origen distinto rechazado,
+- [x] Cookie y revisión de `Origin` en web · tests: origen distinto rechazado,
       cookie con sus atributos
-- [ ] `POST /auth/logout` · tests: revoca solo esa sesión, es idempotente
+- [x] `POST /auth/logout` · tests: revoca solo esa sesión, es idempotente
 
 ## Contraseña
 

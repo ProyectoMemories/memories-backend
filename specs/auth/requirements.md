@@ -4,7 +4,7 @@
 - Requisitos: RF-01, RF-03, RF-05, RF-23, RF-24 (Lista de requisitos)
 - Reglas vigentes: RN-06, RN-07, RN-08, RN-09, RN-10, RN-11, RN-12, RN-14,
   RN-17, RN-19, RN-50, RN-51, RN-67, RN-68 (05-reglas-de-negocio)
-- Decisiones: D22, D28, D41, D56, D60, D62 (01-decisiones)
+- Decisiones: D22, D28, D41, D56, D60, D62, D65 (01-decisiones)
 - Estado: **aprobado**
 
 Fuera de este spec (van en `specs/users/`): ver y editar el perfil (RF-04),
@@ -36,8 +36,10 @@ Como persona nueva, quiero crear una cuenta para guardar mis recuerdos.
   la lista de contraseñas comunes, **cuando** me registro, **entonces** se
   rechaza. No se exigen mayúsculas, números ni símbolos (D62-B).
 - **Dado** que envío el campo `is_superuser`, **cuando** me registro,
-  **entonces** se ignora o se rechaza: el registro nunca crea superusuarios
-  (D28).
+  **entonces** se rechaza: el registro nunca crea superusuarios (D28, D65).
+- **Dado** que desde la misma IP ya hubo 5 registros en el último minuto,
+  **cuando** me registro otra vez, **entonces** se rechaza (D62-F; ver
+  design.md §5).
 
 ## HU-02 Verificar el correo (RF-23, RN-11)
 
@@ -89,6 +91,9 @@ Como usuario, quiero seguir conectado sin escribir mi contraseña cada vez.
   **entonces** se revoca esa sesión y hay que volver a iniciar sesión.
 - **Dado** un token de renovación vencido o de una sesión revocada, **cuando** lo
   uso, **entonces** se rechaza.
+- **Dado** un token que no es de acceso (por ejemplo, el de un enlace de
+  verificación), **cuando** lo uso como token de acceso, **entonces** se
+  rechaza.
 - **Dado** que mi cuenta dejó de estar activa (por ejemplo, fue suspendida),
   **cuando** hago cualquier petición, **entonces** se rechaza aunque mi token de
   acceso no haya vencido (RN-67, RN-17).

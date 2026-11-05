@@ -1,15 +1,15 @@
-"""Único punto de acceso a app_user y privacy_consent (CLAUDE.md §7)."""
+"""Único punto de acceso a app_user, privacy_consent y user_session (§7)."""
 
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import UniqueViolationError
-from app.modules.auth.models import AppUser, PrivacyConsent
+from app.modules.auth.models import AppUser, PrivacyConsent, UserSession
 
 _UNIQUE_VIOLATION = "23505"
 
@@ -25,6 +25,26 @@ class AuthRepository:
         # lower() usa el índice uq_app_user_email_ci (RN-09).
         query = select(AppUser).where(func.lower(AppUser.email) == email.lower())
         return self._session.scalars(query).one_or_none()
+
+    def get_user_by_login(self, identifier: str) -> AppUser | None:
+        """Busca por correo o por nombre de usuario, sin importar mayúsculas."""
+        value = identifier.lower()
+        query = select(AppUser).where(
+            or_(
+                func.lower(AppUser.email) == value,
+                func.lower(AppUser.username) == value,
+            )
+        )
+        # Un correo no puede ser nombre de usuario (lleva "@"), así que hay a lo
+        # sumo una coincidencia.
+        return self._session.scalars(query).one_or_none()
+
+    def add_session(self, user_session: UserSession) -> None:
+        self._session.add(user_session)
+
+    def get_session_for_update(self, session_id: uuid.UUID) -> UserSession | None:
+        """Bloquea la fila: dos renovaciones con el mismo token van de a una."""
+        return self._session.get(UserSession, session_id, with_for_update=True)
 
     def add_user(self, user: AppUser, consent: PrivacyConsent) -> None:
         with self._unique_violations():
