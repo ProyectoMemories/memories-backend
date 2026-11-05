@@ -248,7 +248,7 @@ Con Docker levantado (`db` en **healthy**):
 
    | Campo | Valor |
    |---|---|
-   | Host | `localhost` |
+   | Host | `127.0.0.1` |
    | Port | `5433` (no 5432) |
    | Database | `memories` |
    | Username | `memories` |
@@ -268,6 +268,11 @@ Con Docker levantado (`db` en **healthy**):
   demás. Mirar datos y hacer consultas, sin problema.
 - La base `memories_test` la crean y la borran las pruebas: no trabajes en ella.
 - "Connection refused": Docker no está levantado o el puerto no es 5433.
+- **`pytest` se queda pegado en la primera prueba** (y al cortarlo con
+  `Ctrl+C` sale `psycopg\connection.py`): tu `.env` usa `localhost` en
+  `DATABASE_URL` o `TEST_DATABASE_URL`. En Windows cada conexión a `localhost`
+  espera unos 2 s probando IPv6. Cambia `localhost` por `127.0.0.1` en esas
+  dos líneas (o vuelve a copiar `.env.example`).
   "password authentication failed": la contraseña no coincide con tu `.env`.
 
 ## Cada vez que bajes cambios de `main`
@@ -338,10 +343,10 @@ docker compose ps           # api, db, minio y mailpit deben decir "healthy"
 | Servicio | Dónde |
 |---|---|
 | API | http://localhost:8001/health · documentación en http://localhost:8001/docs |
-| PostgreSQL | `localhost:5433` (usuario, clave y base del `.env`) |
+| PostgreSQL | `127.0.0.1:5433` (usuario, clave y base del `.env`) |
 | Consola de MinIO | http://localhost:9011 |
 | API S3 de MinIO | http://localhost:9010 |
-| Mailpit (correos) | http://localhost:8025 · SMTP en `localhost:1025` |
+| Mailpit (correos) | http://localhost:8025 · SMTP en `127.0.0.1:1025` |
 
 - Ver los logs: `docker compose logs -f`
 - Apagar: `docker compose down` (los datos se conservan)
