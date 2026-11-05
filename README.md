@@ -98,6 +98,20 @@ Funciona tal cual en local. Si cambias `POSTGRES_PASSWORD`, cámbiala también
 dentro de `DATABASE_URL` y `TEST_DATABASE_URL`. El `.env` nunca se sube a
 GitHub.
 
+**Si ya tenías un `.env` de antes del PR #14**, revisa que la base y el correo
+usen `127.0.0.1` y no `localhost`. En Windows, con `localhost` cada conexión a
+PostgreSQL puede tardar minutos y `pytest` parece colgado. Deben quedar así
+(con tu clave):
+
+```
+DATABASE_URL=postgresql+psycopg://memories:cambiame@127.0.0.1:5433/memories
+TEST_DATABASE_URL=postgresql+psycopg://memories:cambiame@127.0.0.1:5433/memories_test
+SMTP_HOST=127.0.0.1
+```
+
+Para revisarlo: `Select-String "localhost" .env`. Esas tres líneas no deben
+salir. En DBeaver, el Host también es `127.0.0.1`.
+
 `SECRET_KEY` firma los tokens de sesión y de los correos. El valor de ejemplo
 sirve en tu PC; si quieres una propia:
 `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
