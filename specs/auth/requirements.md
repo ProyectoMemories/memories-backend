@@ -105,6 +105,8 @@ Como usuario, quiero seguir conectado sin escribir mi contraseña cada vez.
   sus tokens.
 - **Dado** que cierro sesión dos veces, **cuando** lo hago, **entonces** la
   segunda vez tampoco da error.
+- **Dado** que cerré sesión, **cuando** uso el token de acceso de esa sesión
+  (aunque no hayan pasado 15 minutos), **entonces** se rechaza.
 
 ## HU-06 Recuperar la contraseña (RF-05, RN-19)
 

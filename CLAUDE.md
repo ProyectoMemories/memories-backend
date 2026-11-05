@@ -211,7 +211,9 @@ Monolito modular (D13): cada módulo sigue `router → service → repository`.
   reusado: **se revoca esa sesión**.
 - Cerrar sesión revoca la sesión de ese dispositivo; cambiar la contraseña
   revoca todas.
-- En cada petición se revisa que la cuenta siga activa.
+- En cada petición se revisa que la cuenta siga activa y que la sesión del
+  token (`sid`) no esté revocada ni vencida: cerrar sesión corta también el
+  token de acceso.
 - Web: el token de renovación va en una cookie httpOnly. Android: en el
   almacenamiento seguro del dispositivo.
 - **Protección CSRF en web.** La cookie se envía sola, así que hay que impedir

@@ -54,3 +54,10 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
       no la cuenta, revoca todas las sesiones, enlace usado ya no sirve
 - [ ] `POST /auth/password/change` · tests: actual incorrecta no revoca nada;
       correcta revoca todas
+
+## Correcciones
+
+- [x] El token de acceso deja de servir al cerrar la sesión (se revisa la
+      sesión del `sid` en cada petición) · tests: tras el logout (Android y
+      web) el token de acceso da 401; con la sesión vencida o de otra cuenta,
+      también
