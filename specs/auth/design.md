@@ -100,6 +100,11 @@ firmados** de vida corta (RN-19), igual que en el modelo físico.
   `type: "access"`: un enlace de verificación nunca sirve como token de
   acceso. Y al revés, un token de acceso no sirve como enlace, porque no lleva
   `purpose`.
+- **En cada petición** con token de acceso se revisa que la cuenta siga activa
+  **y que la sesión de su `sid` siga abierta** (sin revocar y sin vencer). Así,
+  cerrar sesión o cambiar la contraseña corta también el token de acceso al
+  instante, y un token robado se puede cortar (D56). Cuesta una lectura por
+  clave primaria más por petición.
 - **Token de renovación:** `<id de sesión>.<secreto aleatorio>`. Se guarda solo
   el hash del secreto.
 - **Rotación:** en cada `refresh` se genera un secreto nuevo, se reemplaza el
@@ -165,9 +170,6 @@ app/modules/auth/
 - **Límite de intentos en memoria:** cada proceso cuenta por separado y se
   pierde al reiniciar. Alcanza para un solo proceso en el MVP; si la API corre
   con varios procesos, el límite real se multiplica.
-- **El token de acceso sigue sirviendo hasta 15 minutos** después de cerrar
-  sesión o cambiar la contraseña: no se guarda, así que no se puede revocar
-  (D56). Lo que sí se revisa en cada petición es que la cuenta siga activa.
 - **Carrera en la rotación:** dos `refresh` simultáneos con el mismo token
   pueden revocar una sesión legítima (por ejemplo, dos pestañas). Es el costo
   aceptado de detectar reuso; el cliente debe serializar las renovaciones. En

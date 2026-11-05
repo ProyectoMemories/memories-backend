@@ -42,6 +42,9 @@ class AuthRepository:
     def add_session(self, user_session: UserSession) -> None:
         self._session.add(user_session)
 
+    def get_session(self, session_id: uuid.UUID) -> UserSession | None:
+        return self._session.get(UserSession, session_id)
+
     def get_session_for_update(self, session_id: uuid.UUID) -> UserSession | None:
         """Bloquea la fila: dos renovaciones con el mismo token van de a una."""
         return self._session.get(UserSession, session_id, with_for_update=True)

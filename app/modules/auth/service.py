@@ -354,14 +354,27 @@ class AuthService:
             self._repository.commit()
 
     def authenticate(self, access_token: str) -> AppUser:
-        """Usuario del token de acceso. Exige que la cuenta siga activa (RN-67)."""
+        """Usuario del token de acceso (RN-67).
+
+        Exige que la cuenta siga activa y que su sesión siga abierta: así cerrar
+        sesión o cambiar la contraseña corta también el token de acceso (D56).
+        """
         try:
-            user_id, _ = tokens.read_access_token(access_token, self._config.secret_key)
+            user_id, session_id = tokens.read_access_token(
+                access_token, self._config.secret_key
+            )
         except tokens.ExpiredTokenError as error:
             raise AccessTokenExpiredError from error
         except tokens.InvalidTokenError as error:
             raise NotAuthenticatedError from error
 
+        user_session = self._repository.get_session(session_id)
+        if (
+            user_session is None
+            or user_session.user_id != user_id
+            or not _is_open(user_session, self._clock())
+        ):
+            raise NotAuthenticatedError
         user = self._repository.get_user(user_id)
         if user is None or user.status is not AccountStatus.ACTIVE:
             raise NotAuthenticatedError
@@ -440,9 +453,10 @@ class AuthService:
 def _is_usable(
     user_session: UserSession, platform: ClientPlatform, now: datetime
 ) -> bool:
-    """Sesión vigente, sin revocar y usada por el mismo canal en que se abrió."""
-    return (
-        user_session.revoked_at is None
-        and user_session.expires_at > now
-        and user_session.platform is platform
-    )
+    """Sesión abierta y usada por el mismo canal en que se abrió."""
+    return _is_open(user_session, now) and user_session.platform is platform
+
+
+def _is_open(user_session: UserSession, now: datetime) -> bool:
+    """Ni revocada ni vencida."""
+    return user_session.revoked_at is None and user_session.expires_at > now

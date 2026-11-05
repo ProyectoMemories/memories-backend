@@ -536,3 +536,101 @@ def test_logout_web_desde_otro_origen_se_rechaza(
 
 def test_logout_sin_token_no_da_error(api: TestClient) -> None:
     assert api.post(LOGOUT, headers=WEB).status_code == 204
+
+
+# ─── El token de acceso muere con su sesión (D56) ──────────────────────────
+
+
+def test_tras_el_logout_android_el_token_de_acceso_deja_de_servir(
+    api: TestClient, outbox: FakeEmailSender
+) -> None:
+    _create_user(api, outbox)
+    tokens = _login(api, "android").json()
+    assert api.get(ME, headers=_bearer(tokens["access_token"])).status_code == 200
+
+    api.post(LOGOUT, json={"refresh_token": tokens["refresh_token"]})
+
+    response = api.get(ME, headers=_bearer(tokens["access_token"]))
+    # not_authenticated, no access_token_expired: renovar tampoco serviría.
+    assert (response.status_code, response.json()["code"]) == (
+        401,
+        "not_authenticated",
+    )
+
+
+def test_tras_el_logout_web_el_token_de_acceso_deja_de_servir(
+    api: TestClient, outbox: FakeEmailSender
+) -> None:
+    _create_user(api, outbox)
+    response = _login(api, "web")
+    access = response.json()["access_token"]
+    refresh = _web_cookie(response)[REFRESH_COOKIE].value
+
+    api.post(LOGOUT, headers=_with_cookie(refresh))
+
+    assert api.get(ME, headers=_bearer(access)).status_code == 401
+
+
+def test_cerrar_una_sesion_no_corta_el_acceso_de_otra(
+    api: TestClient, outbox: FakeEmailSender
+) -> None:
+    _create_user(api, outbox)
+    phone = _login(api, "android").json()
+    laptop = _login(api, "web").json()
+
+    api.post(LOGOUT, json={"refresh_token": phone["refresh_token"]})
+
+    assert api.get(ME, headers=_bearer(laptop["access_token"])).status_code == 200
+
+
+def test_reuso_del_token_de_renovacion_corta_tambien_el_acceso(
+    api: TestClient, outbox: FakeEmailSender
+) -> None:
+    _create_user(api, outbox)
+    old = _login(api, "android").json()
+    new = api.post(REFRESH, json={"refresh_token": old["refresh_token"]}).json()
+
+    api.post(REFRESH, json={"refresh_token": old["refresh_token"]})  # reuso
+
+    assert api.get(ME, headers=_bearer(new["access_token"])).status_code == 401
+
+
+def test_sesion_vencida_corta_el_acceso(
+    api: TestClient, outbox: FakeEmailSender, migrated_db: str
+) -> None:
+    _create_user(api, outbox)
+    access = _login(api, "android").json()["access_token"]
+    _sql(
+        migrated_db,
+        "UPDATE user_session SET created_at = now() - interval '31 days', "
+        "expires_at = now() - interval '1 second'",
+    )
+
+    assert api.get(ME, headers=_bearer(access)).status_code == 401
+
+
+def test_token_con_sesion_de_otra_cuenta_se_rechaza(
+    api: TestClient, outbox: FakeEmailSender
+) -> None:
+    _create_user(api, outbox, username="ana.rios")
+    _create_user(api, outbox, username="luis.paz")
+    ana = jwt.decode(
+        _login(api, "android", identifier="ana.rios").json()["access_token"],
+        SECRET_KEY,
+        algorithms=["HS256"],
+    )
+    luis = jwt.decode(
+        _login(api, "android", identifier="luis.paz").json()["access_token"],
+        SECRET_KEY,
+        algorithms=["HS256"],
+    )
+    # Firmado bien, pero mezcla el usuario de Ana con la sesión de Luis.
+    mixed = create_access_token(
+        uuid.UUID(ana["sub"]),
+        uuid.UUID(luis["sid"]),
+        timedelta(minutes=15),
+        SECRET_KEY,
+        datetime.now(UTC),
+    )
+
+    assert api.get(ME, headers=_bearer(mixed)).status_code == 401
