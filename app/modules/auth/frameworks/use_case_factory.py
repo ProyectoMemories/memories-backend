@@ -33,6 +33,8 @@ class AuthUseCaseFactory:
         self, module: "AuthModule", session: Session, deferred_email: EmailSender
     ) -> None:
         self._module = module
+        # forgot y resend envían con este, después de responder, para no
+        # revelar por el tiempo qué cuentas existen (D74).
         self._deferred_email = deferred_email
         self._users = SqlUserGateway(session)
         self._sessions = SqlSessionGateway(session)
@@ -57,7 +59,6 @@ class AuthUseCaseFactory:
         )
 
     def resend_verification(self) -> ResendVerification:
-        # Fuera de la petición, para no revelar por el tiempo qué cuentas existen (D74).
         module = self._module
         mailer = VerificationMailer(
             self._deferred_email, module.email_links, module.web_app_origin
@@ -100,7 +101,6 @@ class AuthUseCaseFactory:
         )
 
     def request_password_reset(self) -> RequestPasswordReset:
-        # Fuera de la petición, para no revelar por el tiempo qué cuentas existen (D74).
         module = self._module
         mailer = PasswordResetMailer(
             self._deferred_email, module.reset_tokens, module.web_app_origin

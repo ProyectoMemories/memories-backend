@@ -102,6 +102,31 @@ def test_el_correo_sale_despues_de_la_respuesta(
 
 
 @pytest.mark.parametrize("path", DEFERRED_ENDPOINTS)
+def test_mientras_se_envia_el_correo_no_ocupa_una_conexion_a_la_base(
+    app: FastAPI,
+    db_client: TestClient,
+    outbox: FakeEmailSender,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+) -> None:
+    """Un SMTP lento no debe dejar a la API sin conexiones."""
+    db_client.post(f"{AUTH}/register", json=REGISTRATION)
+    pool = app.state.sessionmaker.kw["bind"].pool
+    connections_in_use: list[int] = []
+    send_email = outbox.send
+
+    def record_and_send(message: EmailMessage) -> None:
+        connections_in_use.append(pool.checkedout())
+        send_email(message)
+
+    monkeypatch.setattr(outbox, "send", record_and_send)
+
+    db_client.post(f"{AUTH}{path}", json={"email": "ana@correo.com"})
+
+    assert connections_in_use == [0]
+
+
+@pytest.mark.parametrize("path", DEFERRED_ENDPOINTS)
 def test_con_el_smtp_caido_responde_igual_y_lo_registra(
     db_client: TestClient,
     outbox: FakeEmailSender,

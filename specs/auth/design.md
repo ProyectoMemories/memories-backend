@@ -213,9 +213,14 @@ app/modules/auth/
   `EmailSender` pero solo guarda el correo. La dependencia de cada petición
   (`open_request_scope` en `main.py`) crea uno y programa su `flush()` con
   `BackgroundTasks` de FastAPI, que corre después de enviar la respuesta. Los
-  casos de uso y los mailers no cambian. Si el envío falla, se registra en el
-  log sin el contenido del correo (lleva el token) y no se reintenta: la
-  persona puede pedir otro. `register` sigue enviando dentro de la petición.
+  casos de uso no cambian. Si el envío falla, se registra en el log sin el
+  contenido del correo (lleva el token) y no se reintenta: la persona puede
+  pedir otro. `register` sigue enviando dentro de la petición.
+  - La dependencia usa `scope="function"`: la sesión de base se cierra antes de
+    responder, así un SMTP lento no retiene conexiones del pool.
+  - Si la petición termina en error, no se envía nada (la respuesta de error no
+    lleva las tareas). Si algún endpoint asigna su propio `background` a la
+    respuesta, los correos diferidos se perderían: no hacerlo.
 - `users` usará la dependencia de "usuario actual" que expone `auth`; no lee
   `user_session` directamente.
 

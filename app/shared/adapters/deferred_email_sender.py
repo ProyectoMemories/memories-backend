@@ -22,7 +22,11 @@ class DeferredEmailSender:
         self._pending.append(message)
 
     def flush(self) -> None:
-        """Envía lo pendiente. Un fallo no detiene a los demás ni se reintenta."""
+        """Envía lo pendiente.
+
+        Un EmailDeliveryError (SMTP caído o que rechaza) no detiene a los demás
+        ni se reintenta. Cualquier otro error es un bug y se deja subir.
+        """
         pending, self._pending = self._pending, []
         for message in pending:
             try:

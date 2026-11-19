@@ -33,7 +33,8 @@ def open_request_scope(
     """Una sesión de base por petición y los interactores que la usan.
 
     Lo que no se confirmó con commit se descarta al cerrar la sesión. Los
-    correos diferidos se envían cuando la respuesta ya salió (D74).
+    correos diferidos se envían cuando la respuesta ya salió (D74); si no hay
+    ninguno, `flush` no hace nada.
     """
     state = request.app.state
     deferred_email = DeferredEmailSender(state.email_sender)
@@ -54,7 +55,9 @@ def create_app(
     app = FastAPI(
         title="Memories API",
         version="0.1.0",
-        dependencies=[Depends(open_request_scope)],
+        # scope="function": la sesión se cierra antes de enviar la respuesta,
+        # así un SMTP lento en segundo plano no retiene una conexión (D74).
+        dependencies=[Depends(open_request_scope, scope="function")],
     )
     app.state.settings = settings
     app.state.sessionmaker = create_sessionmaker(settings.database_url)
