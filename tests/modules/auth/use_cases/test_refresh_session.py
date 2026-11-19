@@ -16,7 +16,9 @@ def _log_in(kit: AuthKit) -> IssuedTokens:
     return kit.log_in().execute(LogInInput("ana.rios", PASSWORD, ANDROID, None))
 
 
-def _refresh(kit: AuthKit, token: str | None, platform=ANDROID) -> IssuedTokens:  # type: ignore[no-untyped-def]
+def _refresh(
+    kit: AuthKit, token: str | None, platform: ClientPlatform = ANDROID
+) -> IssuedTokens:
     return kit.refresh_session().execute(RefreshSessionInput(token, platform))
 
 

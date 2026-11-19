@@ -19,7 +19,10 @@ def conn(migrated_db: str) -> Iterator[psycopg.Connection]:
 
 
 def assert_violates(
-    conn: psycopg.Connection, constraint: str, query: str, params: tuple = ()
+    conn: psycopg.Connection,
+    constraint: str,
+    query: str,
+    params: tuple[object, ...] = (),
 ) -> None:
     """La sentencia debe fallar por esa restricción exacta, y no por otra."""
     # conn.transaction() abre un savepoint: la prueba sigue después del error.

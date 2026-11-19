@@ -1,5 +1,5 @@
 ---
-description: Corre lint, formato y pruebas del repo
+description: Corre lint, formato, dependencias, tipos y pruebas del repo
 ---
 Fase: Pruebas.
 
@@ -9,6 +9,7 @@ Ejecuta, en este orden:
 ruff check .
 ruff format --check .
 lint-imports
+mypy
 pytest
 ```
 

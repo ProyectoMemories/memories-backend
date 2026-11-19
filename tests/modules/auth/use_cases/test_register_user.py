@@ -57,7 +57,7 @@ def test_envia_el_enlace_que_sirve_para_verificar(kit: AuthKit) -> None:
     ],
 )
 def test_reglas_que_impiden_registrarse(
-    kit: AuthKit, changes: dict, error: type
+    kit: AuthKit, changes: dict[str, object], error: type[Exception]
 ) -> None:
     with pytest.raises(error):
         kit.register_user().execute(_input(**changes))

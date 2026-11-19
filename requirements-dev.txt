@@ -7,3 +7,5 @@ pytest==9.2.0
 httpx2==2.14.0
 # Hace cumplir la regla de dependencias de Clean Architecture (lint-imports).
 import-linter==2.15
+# Verifica los tipos; entre otras cosas, que los adaptadores cumplan sus puertos.
+mypy==2.4.1

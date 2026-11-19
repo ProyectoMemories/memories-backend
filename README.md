@@ -147,11 +147,14 @@ Debes ver `0001 (head)` y **17 tablas** (las 16 del modelo más
 ruff check .
 ruff format --check .
 lint-imports
+mypy
 pytest
 ```
 
 `lint-imports` revisa la regla de dependencias de Clean Architecture (ver
-CLAUDE.md §7): debe decir `Contracts: 6 kept, 0 broken`.
+CLAUDE.md §7): debe decir `Contracts: 6 kept, 0 broken`. `mypy` revisa los
+tipos (por ejemplo, que cada adaptador cumpla su puerto): debe decir
+`Success: no issues found`.
 
 Debes ver `All checks passed!`, los archivos ya formateados y todas las
 pruebas en verde, **ninguna `skipped`**. Si salen `skipped`, la base no está
@@ -333,6 +336,7 @@ pip install -r requirements-dev.txt
 ruff check .
 ruff format --check .
 lint-imports
+mypy
 pytest
 ```
 

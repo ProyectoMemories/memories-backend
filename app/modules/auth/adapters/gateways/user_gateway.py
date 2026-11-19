@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -62,7 +62,7 @@ class SqlUserGateway:
             raise LookupError(f"No existe el usuario {user.id}")
         mappers.copy_user_changes(user, record)
 
-    def _one(self, condition: object) -> User | None:
+    def _one(self, condition: ColumnElement[bool]) -> User | None:
         record = self._session.scalars(
             select(UserRecord).where(condition)
         ).one_or_none()

@@ -87,3 +87,10 @@ name = "shared/ no depende de ningún módulo"
 type = "forbidden"
 source_modules = ["app.shared"]
 forbidden_modules = ["app.modules"]
+
+# Verificación de tipos: entre otras cosas, comprueba que cada adaptador y cada
+# doble de prueba cumpla su puerto (typing.Protocol), CLAUDE.md §7.
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["app", "tests"]

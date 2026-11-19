@@ -39,6 +39,8 @@ jobs:
         run: ruff format --check .
       - name: Regla de dependencias (Clean Architecture)
         run: lint-imports
+      - name: Tipos (mypy)
+        run: mypy
 
   pytest:
     name: pytest

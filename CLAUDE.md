@@ -71,7 +71,7 @@ los tres lo deciden.
 | Contraseñas | Hash con algoritmo intercambiable (RNF-08) |
 | Fotos | Almacenamiento compatible con S3; MinIO en local, con versión fijada (D46) |
 | Entorno local | Docker Compose: PostgreSQL, API, MinIO y Mailpit para ver los correos (D62) |
-| Calidad | pytest, ruff, import-linter (D69), GitHub Actions (D48) |
+| Calidad | pytest, ruff, import-linter (D69), mypy, GitHub Actions (D48) |
 
 **No hay Redis** en este proyecto: las sesiones viven en PostgreSQL (D56).
 
@@ -82,6 +82,7 @@ pip install -r requirements-dev.txt   # herramientas (versiones fijadas)
 ruff check .                          # lint
 ruff format .                         # formato (el CI usa --check)
 lint-imports                          # regla de dependencias de Clean Architecture
+mypy                                  # tipos: cada adaptador cumple su puerto
 pytest                                # pruebas
 ```
 
@@ -114,7 +115,7 @@ alembic revision -m "descripcion"               # nueva migración (vacía, a ma
 
 No inventes comandos que el repositorio todavía no tiene.
 
-El CI (`.github/workflows/ci.yml`) corre `ruff` (con `lint-imports`), `pytest` y `docker-compose`
+El CI (`.github/workflows/ci.yml`) corre `ruff` (con `lint-imports` y `mypy`), `pytest` y `docker-compose`
 (levanta el entorno y comprueba cada servicio) en cada PR; deben pasar antes de
 fusionar (D61).
 
@@ -223,6 +224,9 @@ de afuera. `import-linter` lo revisa en el CI (`lint-imports`, contratos en
   gateways ni modelos ORM.
 - **Puertos solo en las fronteras** (base de datos, correo, hash, tokens,
   reloj). Dentro de un círculo no se agregan abstracciones especulativas.
+- **Los puertos son `typing.Protocol`**: el adaptador cumple el contrato por
+  forma, sin heredar. `mypy` en modo estricto comprueba en el CI que cada
+  adaptador y cada doble de prueba coincida con su puerto.
 
 **Clean Code:**
 

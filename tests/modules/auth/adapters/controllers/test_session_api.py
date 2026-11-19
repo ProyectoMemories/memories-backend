@@ -75,7 +75,7 @@ def _create_user(
     }
     assert api.post(REGISTER, json=data).status_code == 201
     if verify:
-        token = re.search(r"token=(\S+)", outbox.sent[-1].text).group(1)
+        token = _token_from(outbox)
         assert api.post(VERIFY, json={"token": token}).status_code == 204
 
 
@@ -98,7 +98,15 @@ def _with_cookie(token: str) -> dict[str, str]:
     return {**WEB, "Cookie": f"{REFRESH_COOKIE}={token}"}
 
 
-def _sql(migrated_db: str, query: str, params: tuple = ()) -> list[tuple]:
+def _token_from(outbox: FakeEmailSender) -> str:
+    match = re.search(r"token=(\S+)", outbox.sent[-1].text)
+    assert match, "el correo no trae el enlace"
+    return match.group(1)
+
+
+def _sql(
+    migrated_db: str, query: str, params: tuple[object, ...] = ()
+) -> list[tuple[Any, ...]]:
     with psycopg.connect(migrated_db, autocommit=True) as conn:
         cursor = conn.execute(query, params)
         return cursor.fetchall() if cursor.description else []
@@ -311,7 +319,7 @@ def test_enlace_de_verificacion_no_sirve_como_token_de_acceso(
 ) -> None:
     # Está firmado con la misma SECRET_KEY, pero no lleva type "access".
     _create_user(api, outbox, verify=False)
-    verification_token = re.search(r"token=(\S+)", outbox.sent[-1].text).group(1)
+    verification_token = _token_from(outbox)
 
     response = api.get(ME, headers=_bearer(verification_token))
 
