@@ -1,45 +1,68 @@
-"""Punto de entrada de la API.
+"""Raíz de composición de la API (círculo Frameworks & Drivers).
 
-Se usa una fábrica (`create_app`) para que las pruebas armen la app con su
-propia configuración, sin depender de variables de entorno.
-Uvicorn la llama con `--factory`.
+Arma FastAPI, crea los adaptadores compartidos y monta cada módulo. Se usa una
+fábrica (`create_app`) para que las pruebas armen la app con su propia
+configuración. Uvicorn la llama con `--factory`.
 """
 
+from collections.abc import Iterator
 from typing import Literal
 
-from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from app.config import Settings, get_settings
-from app.db import create_sessionmaker
-from app.email import EmailSender, SmtpEmailSender
-from app.errors import AppError, ErrorResponse, FieldError, ValidationErrorResponse
-from app.modules.auth.passwords import PasswordHasher
-from app.modules.auth.router import router as auth_router
-from app.rate_limit import RateLimiter
+from app.modules.auth.adapters.controllers.router import router as auth_router
+from app.modules.auth.frameworks.composition import AuthModule
+from app.shared.adapters.error_presenter import register_error_handlers
+from app.shared.adapters.rate_limit import RateLimiter
+from app.shared.adapters.smtp_email_sender import SmtpEmailSender
+from app.shared.frameworks.config import Settings, get_settings
+from app.shared.frameworks.database import create_sessionmaker
+from app.shared.use_cases.ports import EmailSender
 
 
 class HealthResponse(BaseModel):
     status: Literal["ok"]
 
 
+def open_request_scope(request: Request) -> Iterator[None]:
+    """Una sesión de base por petición y los interactores que la usan.
+
+    Lo que no se confirmó con commit se descarta al cerrar la sesión.
+    """
+    state = request.app.state
+    with state.sessionmaker() as session:
+        request.state.auth = state.auth_module.use_cases(session)
+        yield
+
+
 def create_app(
     settings: Settings | None = None, email_sender: EmailSender | None = None
 ) -> FastAPI:
     settings = settings or get_settings()
-
-    app = FastAPI(title="Memories API", version="0.1.0")
-    app.state.settings = settings
-    app.state.sessionmaker = create_sessionmaker(settings.database_url)
-    app.state.email_sender = email_sender or SmtpEmailSender(
+    email_sender = email_sender or SmtpEmailSender(
         settings.smtp_host, settings.smtp_port, settings.email_from
     )
-    app.state.password_hasher = PasswordHasher()
-    app.state.rate_limiter = RateLimiter()
 
+    app = FastAPI(
+        title="Memories API",
+        version="0.1.0",
+        dependencies=[Depends(open_request_scope)],
+    )
+    app.state.settings = settings
+    app.state.sessionmaker = create_sessionmaker(settings.database_url)
+    app.state.rate_limiter = RateLimiter()
+    app.state.auth_module = AuthModule(settings, email_sender)
+
+    _add_cors(app, settings)
+    register_error_handlers(app)
+    _add_health(app)
+    app.include_router(auth_router)
+    return app
+
+
+def _add_cors(app: FastAPI, settings: Settings) -> None:
     # La cookie de renovación viaja con credenciales, por eso solo se acepta el
     # origen de la app web (D56, CLAUDE.md §9).
     app.add_middleware(
@@ -49,36 +72,10 @@ def create_app(
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
     )
-    _register_error_handlers(app)
 
+
+def _add_health(app: FastAPI) -> None:
     @app.get("/health", tags=["health"])
     def health() -> HealthResponse:
         """Responde si el proceso de la API está vivo."""
         return HealthResponse(status="ok")
-
-    app.include_router(auth_router)
-    return app
-
-
-def _register_error_handlers(app: FastAPI) -> None:
-    @app.exception_handler(AppError)
-    def _app_error(_: Request, error: AppError) -> JSONResponse:
-        body = ErrorResponse(code=error.code, message=error.message)
-        return JSONResponse(
-            body.model_dump(), status_code=error.status_code, headers=error.headers
-        )
-
-    @app.exception_handler(RequestValidationError)
-    def _validation_error(_: Request, error: RequestValidationError) -> JSONResponse:
-        errors = [
-            FieldError(
-                # loc es ("body", "campo", ...): se quita "body".
-                field=".".join(str(part) for part in item["loc"][1:]),
-                message=item["msg"],
-            )
-            for item in error.errors()
-        ]
-        body = ValidationErrorResponse(
-            code="validation_error", message="Hay datos inválidos.", errors=errors
-        )
-        return JSONResponse(body.model_dump(), status_code=422)

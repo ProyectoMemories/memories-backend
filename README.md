@@ -146,8 +146,12 @@ Debes ver `0001 (head)` y **17 tablas** (las 16 del modelo más
 ```powershell
 ruff check .
 ruff format --check .
+lint-imports
 pytest
 ```
+
+`lint-imports` revisa la regla de dependencias de Clean Architecture (ver
+CLAUDE.md §7): debe decir `Contracts: 6 kept, 0 broken`.
 
 Debes ver `All checks passed!`, los archivos ya formateados y todas las
 pruebas en verde, **ninguna `skipped`**. Si salen `skipped`, la base no está
@@ -328,6 +332,7 @@ py -3.12 -m venv .venv
 pip install -r requirements-dev.txt
 ruff check .
 ruff format --check .
+lint-imports
 pytest
 ```
 

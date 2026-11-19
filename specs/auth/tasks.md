@@ -50,11 +50,11 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
 
 ## Clean Architecture (aprobada el 2026-11-19)
 
-- [ ] Mover `auth` y lo común a `entities/`, `use_cases/`, `adapters/` y
+- [x] Mover `auth` y lo común a `entities/`, `use_cases/`, `adapters/` y
       `frameworks/` sin cambiar el comportamiento · tests: las pruebas de la API
       siguen en verde; unitarias nuevas de entidades e interactores con dobles
       en memoria
-- [ ] `import-linter` en el CI · test: `lint-imports` falla si un círculo
+- [x] `import-linter` en el CI · test: `lint-imports` falla si un círculo
       importa a uno de afuera
 
 ## Contraseña
