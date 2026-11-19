@@ -61,7 +61,7 @@ def _token_from(outbox: FakeEmailSender) -> str:
     return match.group(1)
 
 
-def _user_row(migrated_db: str, username: str) -> tuple:
+def _user_row(migrated_db: str, username: str) -> tuple[Any, ...]:
     with psycopg.connect(migrated_db) as conn:
         row = conn.execute(
             "SELECT status, email_verified_at, is_superuser, password_hash "

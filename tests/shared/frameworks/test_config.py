@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -10,7 +12,7 @@ from tests.conftest import (
     WEB_APP_ORIGIN,
 )
 
-_REQUIRED = {
+_REQUIRED: dict[str, Any] = {
     "database_url": DATABASE_URL,
     "secret_key": SECRET_KEY,
     "privacy_policy_version": PRIVACY_POLICY_VERSION,
@@ -28,7 +30,7 @@ def test_rechaza_origenes_invalidos(origin: str) -> None:
 
 def test_rechaza_entorno_desconocido() -> None:
     with pytest.raises(ValidationError):
-        Settings(app_env="staging", web_app_origin=WEB_APP_ORIGIN, **_REQUIRED)
+        Settings(app_env="staging", web_app_origin=WEB_APP_ORIGIN, **_REQUIRED)  # type: ignore[arg-type]  # inválido a propósito
 
 
 def test_rechaza_url_de_base_sin_psycopg() -> None:

@@ -33,7 +33,8 @@ class AuthUseCases(Protocol):
 
 
 def get_auth_use_cases(request: Request) -> AuthUseCases:
-    return request.state.auth
+    use_cases: AuthUseCases = request.state.auth  # lo deja main.open_request_scope
+    return use_cases
 
 
 UseCases = Annotated[AuthUseCases, Depends(get_auth_use_cases)]

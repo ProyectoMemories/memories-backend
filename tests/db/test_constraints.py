@@ -5,6 +5,7 @@ exacta del modelo, o que un borrado hace lo que dicen las reglas de negocio.
 """
 
 import uuid
+from typing import Any
 
 import psycopg
 import pytest
@@ -16,6 +17,14 @@ from tests.db.conftest import (
     new_photo,
     new_user,
 )
+
+
+def _one(cursor: psycopg.Cursor[tuple[Any, ...]]) -> tuple[Any, ...]:
+    """La única fila que debe devolver la consulta."""
+    row = cursor.fetchone()
+    assert row is not None
+    return row
+
 
 # ─── Cuentas ──────────────────────────────────────────────────────────────
 
@@ -76,9 +85,9 @@ def test_updated_at_se_actualiza_solo(conn: psycopg.Connection) -> None:
     conn.execute(
         "UPDATE app_user SET updated_at = '2000-01-01' WHERE id = %s", (user_id,)
     )
-    (updated_at,) = conn.execute(
-        "SELECT updated_at FROM app_user WHERE id = %s", (user_id,)
-    ).fetchone()
+    (updated_at,) = _one(
+        conn.execute("SELECT updated_at FROM app_user WHERE id = %s", (user_id,))
+    )
 
     # El trigger reemplaza cualquier valor por now() en cada UPDATE.
     assert updated_at.year > 2000
@@ -106,13 +115,15 @@ def test_editar_foto_y_cambiar_rol_actualizan_updated_at(
         (album_id, member_id),
     )
 
-    (photo_updated_at,) = conn.execute(
-        "SELECT updated_at FROM photo WHERE id = %s", (photo_id,)
-    ).fetchone()
-    (member_updated_at,) = conn.execute(
-        "SELECT updated_at FROM album_member WHERE album_id = %s AND user_id = %s",
-        (album_id, member_id),
-    ).fetchone()
+    (photo_updated_at,) = _one(
+        conn.execute("SELECT updated_at FROM photo WHERE id = %s", (photo_id,))
+    )
+    (member_updated_at,) = _one(
+        conn.execute(
+            "SELECT updated_at FROM album_member WHERE album_id = %s AND user_id = %s",
+            (album_id, member_id),
+        )
+    )
     assert photo_updated_at.year > 2000
     assert member_updated_at.year > 2000
 
