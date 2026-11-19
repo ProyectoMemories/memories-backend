@@ -22,6 +22,8 @@ solo hay README técnico, este CLAUDE.md y `specs/`.
 | Decisiones del equipo (D1, D2…) | Context Proyecto para Claude / 01-decisiones |
 | Arquitectura | Context Proyecto para Claude / 04-arquitectura |
 | Reglas de negocio (RN-xx) | Context Proyecto para Claude / 05-reglas-de-negocio |
+| Reglas del asistente (rol, marcas, fases) | Context Proyecto para Claude / 00-instrucciones-asistente |
+| Qué Skill usar en cada tarea | Context Proyecto para Claude / 03-manual-skills |
 | Requisitos (RF-xx, RNF-xx) | Lista de requisitos |
 | Modelo físico vigente | memories-physical-v1.5.sql |
 
@@ -69,7 +71,7 @@ los tres lo deciden.
 | Contraseñas | Hash con algoritmo intercambiable (RNF-08) |
 | Fotos | Almacenamiento compatible con S3; MinIO en local, con versión fijada (D46) |
 | Entorno local | Docker Compose: PostgreSQL, API, MinIO y Mailpit para ver los correos (D62) |
-| Calidad | pytest, ruff, GitHub Actions (D48) |
+| Calidad | pytest, ruff, import-linter (D69), GitHub Actions (D48) |
 
 **No hay Redis** en este proyecto: las sesiones viven en PostgreSQL (D56).
 
@@ -118,13 +120,17 @@ fusionar (D61).
 
 ## 5. Estructura (respétala)
 
-El backend sigue **Clean Architecture** (Robert C. Martin) dentro de un
-monolito modular (D13; Clean Architecture aprobada por el equipo el
-2026-11-19, pendiente de registrar en el 01). Cada módulo y `shared/` tienen
-los cuatro círculos del modelo, uno por carpeta:
+El backend es un monolito modular (D13) y cada módulo sigue **Clean
+Architecture** (Robert C. Martin) en cuatro capas (D69). Cada módulo y
+`shared/` tienen los cuatro círculos del modelo, uno por carpeta:
 
 ```
 CLAUDE.md / CLAUDE.local.md   memoria del proyecto / personal (local, en .gitignore)
+.claude/                      configuración compartida de Claude Code (D68)
+├── settings.json             plugins del equipo y permisos
+├── commands/                 /spec, /task, /check
+└── agents/                   subagente reviewer
+.mcp.json                     Context7 (D67); la key va en la variable CONTEXT7_API_KEY
 README.md                     cómo levantar y probar el proyecto (D55)
 Dockerfile · docker-compose.yml   imagen de la API y entorno local
 .github/                      CI y plantilla de PR
@@ -132,7 +138,7 @@ specs/<feature>/              requirements.md, design.md, tasks.md
 alembic.ini · alembic/versions/   migraciones (0001 = modelo v1.5)
 tests/                        espejo de app/
 app/
-├── main.py                   raíz de composición: arma la app y monta los módulos
+├── main.py                   raíz de composición (ver §7)
 ├── shared/                   lo común a todos los módulos, con los mismos círculos
 │   ├── entities/             errores base (AppError y categorías), ids UUIDv7, reloj
 │   ├── use_cases/            puertos comunes: EmailSender, UnitOfWork
@@ -147,7 +153,7 @@ app/
     │   ├── presenters/       esquemas Pydantic y salida del interactor → respuesta HTTP
     │   ├── gateways/         repositorios SQLAlchemy y modelos ORM; implementan los puertos
     │   └── services/         adaptadores de librerías externas (hash, JWT…); implementan puertos
-    └── frameworks/           Frameworks & Drivers: composition.py conecta puertos y adaptadores
+    └── frameworks/           Frameworks & Drivers: composition.py del módulo (ver §7)
 ```
 
 - No crees carpetas ni archivos de primer nivel sin preguntar.
@@ -159,6 +165,12 @@ app/
 ---
 
 ## 6. Flujo obligatorio: Spec-Driven Development
+
+Nivel **spec-anchored** (D66): la spec se mantiene al día durante todo el
+proyecto y es el contrato contra el que se compara el código. Ciclo:
+Specify (`requirements.md`: **qué**, no cómo) → Plan (`design.md`) → Tasks
+(`tasks.md`) → Implement (una tarea). Comandos: `/spec <feature>` y
+`/task <feature>`.
 
 1. **Sin spec no hay código.** Antes de implementar, comprueba que existe
    `specs/<feature>/`. Si no existe, créala y **detente** para que la revisemos.
@@ -175,7 +187,7 @@ app/
 
 ## 7. Reglas de arquitectura
 
-**Regla de dependencias:** cada círculo solo importa a los de adentro.
+**Regla de dependencias (D69):** cada círculo solo importa a los de adentro.
 `frameworks → adapters → use_cases → entities`. Nada de adentro conoce algo
 de afuera. `import-linter` lo revisa en el CI (`lint-imports`, contratos en
 `pyproject.toml`).
@@ -196,9 +208,16 @@ de afuera. `import-linter` lo revisa en el CI (`lint-imports`, contratos en
     traducen entre modelos ORM y entidades. Son los únicos que tocan la base.
   - `services/`: implementan los demás puertos con librerías externas (pwdlib,
     PyJWT, smtplib).
-- **frameworks/**: arman todo. `composition.py` crea los adaptadores y los
-  interactores, y `main.py` los conecta con FastAPI. Los controllers reciben
-  los interactores por inyección de dependencias, sin importar `frameworks/`.
+- **frameworks/ y raíz de composición** (cómo se arma la app; §5 remite aquí):
+  - `modules/<modulo>/frameworks/composition.py` conecta cada puerto con su
+    adaptador. Crea una sola vez lo que no tiene estado por petición (hash,
+    tokens) y, en cada petición, arma los interactores con gateways sobre la
+    sesión de base de esa petición.
+  - `app/main.py` es la raíz de composición: `create_app(settings)` crea
+    FastAPI y los adaptadores compartidos (base, correo, límite de intentos),
+    instancia la composición de cada módulo y monta sus controllers.
+  - Los controllers reciben los interactores por inyección de dependencias,
+    sin importar `frameworks/`.
 - **Entre módulos:** un módulo usa otro solo a través de sus interactores o de
   la dependencia `CurrentUser` de `auth`. Nunca importa sus entidades,
   gateways ni modelos ORM.
@@ -302,10 +321,87 @@ Flujo de D61:
 - Commits pequeños con Conventional Commits, en español:
   `feat(auth): rotar el token de renovación`. Un commit = un cambio lógico.
 
-## 13. Cómo trabajar conmigo
+## 13. Trabajo con IA
+
+**Regla de oro: la IA ejecuta, pero el responsable del código es quien abre el
+PR.** Estas reglas evitan el vibe coding y la deuda cognitiva (código que
+funciona pero que nadie del equipo puede explicar).
+
+- **Explica lo que cambias.** Al cerrar una tarea, explica en 3 a 5 líneas qué
+  hace el cambio y por qué. Si la persona no lo entiende, la tarea no está
+  terminada.
+- **Modo Plan** para tareas grandes, refactors o cambios que tocan varios
+  módulos: presenta el plan y espera la aprobación. No hace falta en
+  correcciones pequeñas y obvias.
+- **Bucle escribir → probar → corregir.** Primero el test, después el código.
+  Cada tarea termina con `/check` en verde. Si un test falla, arregla la causa;
+  nunca cambies el test para que pase sin avisar.
+- **Documentación actualizada (Context7, D67).** Antes de usar una API de
+  FastAPI, SQLAlchemy, Alembic, Pydantic, pwdlib o pytest que todavía no esté en el repo, consúltala con Context7 en la
+  versión fijada en `requirements.txt`. No escribas de memoria APIs que pudieron
+  cambiar.
+- **Higiene del contexto.** Una tarea por sesión. `/clear` al cambiar de tarea
+  y `/compact` si la sesión se alarga. El avance vive en `tasks.md`, no en el
+  chat.
+- **Subagente `reviewer`.** Antes de abrir un PR, pídele que revise la rama:
+  trabaja con su propio contexto y no edita archivos.
+- **Guardrails.** Los permisos de `.claude/settings.json` bloquean la lectura de
+  secretos. Los comandos destructivos siempre piden confirmación.
+- **Registro de correcciones.** Si el equipo corrige el mismo error del agente
+  dos veces, agrega la regla en la sección 16 y respétala desde entonces.
+
+## 14. Fases, pruebas y despliegue
+
+Ciclo: Producto → Requisitos → UX/UI → Arquitectura → Implementación → Pruebas
+→ Despliegue. Di en qué fase está cada tarea; si una tarea se salta una fase,
+avisa el riesgo antes de seguir.
+
+- **Pruebas:** qué probar se decide con `engineering:testing-strategy`. Las
+  pruebas de acceso entre cuentas son obligatorias (RNF-02).
+- **Despliegue: [PENDIENTE].** El proveedor y los ambientes no están decididos.
+  No crees scripts, workflows ni configuración de despliegue hasta que la
+  decisión esté en el 01. Cuando exista, se usa `engineering:deploy-checklist`.
+
+## 15. Cómo trabajar conmigo
+
+Eres desarrollador del equipo **y** mentor técnico: el objetivo es que el
+equipo avance ordenado y aprenda, no hacer el trabajo por él.
 
 - Responde en español, concreto y breve.
+- Marca el estado de la información:
+  - **[DECIDIDO]**: está en el 01-decisiones (cita la D).
+  - **[PENDIENTE]**: pregunta abierta que el equipo debe resolver.
+  - **[HIPÓTESIS]**: suposición todavía no validada.
+  - **[PROPUESTA]**: sugerencia tuya; el equipo decide.
+- Al empezar una tarea, di qué Skill del 03-manual-skills usas:
+
+| Tarea | Skill |
+|---|---|
+| Escribir o actualizar una spec | `product-management:write-spec` |
+| Decidir qué probar | `engineering:testing-strategy` |
+| Tablas, restricciones, qué pasa al borrar | `backend-design:data-modeling-discipline` |
+| Sesión, roles y permisos | `backend-design:auth-and-authorization` |
+| Cada endpoint nuevo | `backend-design:security-discipline` |
+| Cada migración | `backend-design:migration-safety` |
+| Algo falla y no se sabe por qué | `engineering:debug` |
+| Antes de fusionar | `engineering:code-review` + subagente `reviewer` |
+| Decisión técnica con pros y contras (ADR) | `engineering:architecture` |
+
+- **No amplíes el MVP** ni asumas requisitos. Una idea fuera del alcance se
+  marca "fuera de MVP" y se propone para el backlog.
+- Si algo contradice una decisión registrada, **avísalo antes de seguir**.
+- Cuestiona con argumentos; no valides por complacer. Explica el porqué de las
+  buenas prácticas (ramas, PRs, pruebas, ADRs).
+- Cuando el equipo tome una decisión, deja lista la fila para el 01
+  (`| D__ | fecha | decisión | por qué |`). Joey la registra. Una decisión
+  antigua nunca se edita: se agrega otra que la reemplaza.
 - Si algo es ambiguo, **pregunta antes de asumir**.
-- Dame feedback honesto: si mi enfoque está mal o desactualizado, dilo y propón
-  una alternativa.
-- Al terminar una tarea, resume en 2 o 3 líneas qué cambió y qué falta.
+- Al terminar una tarea: 2 o 3 líneas de qué cambió y qué falta, y
+  **Siguiente paso, responsable y fecha**.
+
+## 16. Correcciones aprendidas
+
+Errores del agente que el equipo ya corrigió. Formato:
+`- AAAA-MM-DD · qué pasó → regla`.
+
+- (vacío)
