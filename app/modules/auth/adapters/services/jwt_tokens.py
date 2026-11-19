@@ -90,3 +90,41 @@ class JwtAccessTokens:
         if claims["type"] != _ACCESS_TYPE:
             raise TokenInvalidError
         return _uuid(claims["sub"]), _uuid(claims["sid"])
+
+
+class JwtPasswordResetTokens:
+    """Enlace de recuperación: lleva `pca`, la fecha del último cambio (RN-19)."""
+
+    def __init__(self, secret_key: str) -> None:
+        self._secret_key = secret_key
+
+    def create(
+        self,
+        user_id: uuid.UUID,
+        password_changed_at: datetime | None,
+        lifetime: timedelta,
+        now: datetime,
+    ) -> str:
+        claims = {
+            "sub": str(user_id),
+            "purpose": TokenPurpose.RESET_PASSWORD.value,
+            "pca": password_changed_at.isoformat() if password_changed_at else "",
+            "iat": now,
+            "exp": now + lifetime,
+        }
+        return jwt.encode(claims, self._secret_key, algorithm=_ALGORITHM)
+
+    def read(self, token: str) -> tuple[uuid.UUID, datetime | None]:
+        claims = _decode(token, self._secret_key, ["sub", "purpose", "pca", "exp"])
+        if claims["purpose"] != TokenPurpose.RESET_PASSWORD.value:
+            raise TokenInvalidError
+        return _uuid(claims["sub"]), _timestamp(claims["pca"])
+
+
+def _timestamp(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError as error:
+        raise TokenInvalidError from error

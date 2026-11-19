@@ -36,6 +36,8 @@ class User:
     status: AccountStatus
     email_verified_at: datetime | None = None
     deletion_requested_at: datetime | None = None
+    # La pone la base al crear la cuenta; cambia con cada contraseña nueva.
+    password_changed_at: datetime | None = None
 
     @classmethod
     def register(
@@ -70,6 +72,11 @@ class User:
     def is_unverified(self) -> bool:
         return self.status is AccountStatus.UNVERIFIED
 
+    @property
+    def can_recover_password(self) -> bool:
+        """Una cuenta suspendida no recibe el enlace: igual no puede entrar (RN-17)."""
+        return self.status is not AccountStatus.SUSPENDED
+
     def verify_email(self, now: datetime) -> bool:
         """Activa la cuenta. Devuelve False si ya estaba verificada (HU-02)."""
         if not self.is_unverified:
@@ -93,7 +100,13 @@ class User:
                 pass
 
     def replace_password_hash(self, password_hash: str) -> None:
+        """Mismo password con un hash al día (RNF-08): no cuenta como cambio."""
         self.password_hash = password_hash
+
+    def change_password(self, password_hash: str, now: datetime) -> None:
+        """Contraseña nueva: invalida los enlaces de recuperación anteriores (RN-19)."""
+        self.password_hash = password_hash
+        self.password_changed_at = now
 
     def _cancel_deletion(self, now: datetime) -> None:
         """Entrar dentro de los 30 días cancela la eliminación (RN-14)."""

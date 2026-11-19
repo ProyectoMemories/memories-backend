@@ -23,6 +23,7 @@ def user_to_entity(record: UserRecord) -> User:
         status=record.status,
         email_verified_at=record.email_verified_at,
         deletion_requested_at=record.deletion_requested_at,
+        password_changed_at=record.password_changed_at,
     )
 
 
@@ -48,6 +49,8 @@ def copy_user_changes(user: User, record: UserRecord) -> None:
     record.status = user.status
     record.email_verified_at = user.email_verified_at
     record.deletion_requested_at = user.deletion_requested_at
+    if user.password_changed_at is not None:
+        record.password_changed_at = user.password_changed_at
 
 
 def new_consent_record(consent: PrivacyConsent) -> PrivacyConsentRecord:

@@ -11,12 +11,15 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.modules.auth.use_cases.authenticate import Authenticate, AuthenticatedUser
+from app.modules.auth.use_cases.change_password import ChangePassword
 from app.modules.auth.use_cases.errors import NotAuthenticatedError
 from app.modules.auth.use_cases.log_in import LogIn
 from app.modules.auth.use_cases.log_out import LogOut
 from app.modules.auth.use_cases.refresh_session import RefreshSession
 from app.modules.auth.use_cases.register_user import RegisterUser
+from app.modules.auth.use_cases.request_password_reset import RequestPasswordReset
 from app.modules.auth.use_cases.resend_verification import ResendVerification
+from app.modules.auth.use_cases.reset_password import ResetPassword
 from app.modules.auth.use_cases.verify_email import VerifyEmail
 
 
@@ -30,6 +33,9 @@ class AuthUseCases(Protocol):
     def refresh_session(self) -> RefreshSession: ...
     def log_out(self) -> LogOut: ...
     def authenticate(self) -> Authenticate: ...
+    def request_password_reset(self) -> RequestPasswordReset: ...
+    def reset_password(self) -> ResetPassword: ...
+    def change_password(self) -> ChangePassword: ...
 
 
 def get_auth_use_cases(request: Request) -> AuthUseCases:

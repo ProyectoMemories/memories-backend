@@ -87,6 +87,11 @@ class InMemorySessionGateway:
     def save(self, user_session: UserSession) -> None:
         self.sessions[user_session.id] = copy.deepcopy(user_session)
 
+    def revoke_all(self, user_id: uuid.UUID, now: datetime) -> None:
+        for user_session in self.sessions.values():
+            if user_session.user_id == user_id and user_session.revoked_at is None:
+                user_session.revoke(now)
+
 
 class FakePasswordHasher:
     def __init__(self) -> None:
@@ -173,3 +178,29 @@ class FakeEmailLinkTokens:
             return uuid.UUID(parts[1])
         except ValueError as error:
             raise TokenInvalidError from error
+
+
+class FakePasswordResetTokens:
+    """Token legible: "reset_password|<usuario>|<fecha de cambio>|<vence>"."""
+
+    def __init__(self, clock: FakeClock) -> None:
+        self._clock = clock
+
+    def create(
+        self,
+        user_id: uuid.UUID,
+        password_changed_at: datetime | None,
+        lifetime: timedelta,
+        now: datetime,
+    ) -> str:
+        changed = password_changed_at.isoformat() if password_changed_at else ""
+        return f"reset_password|{user_id}|{changed}|{(now + lifetime).isoformat()}"
+
+    def read(self, token: str) -> tuple[uuid.UUID, datetime | None]:
+        parts = token.split("|")
+        if len(parts) != 4 or parts[0] != "reset_password":
+            raise TokenInvalidError
+        if datetime.fromisoformat(parts[3]) <= self._clock():
+            raise TokenExpiredError
+        changed = datetime.fromisoformat(parts[2]) if parts[2] else None
+        return uuid.UUID(parts[1]), changed

@@ -49,7 +49,12 @@ def test_guarda_y_lee_la_entidad_completa(session: Session) -> None:
     user = _user()
     _add(gateway, user)
 
-    assert gateway.get(user.id) == user
+    saved = gateway.get(user.id)
+    assert saved is not None
+    # password_changed_at lo pone la base al crear la cuenta (DEFAULT now()).
+    assert saved.password_changed_at is not None
+    user.password_changed_at = saved.password_changed_at
+    assert saved == user
     assert gateway.get_by_email("ANA@correo.com") == user
     assert gateway.get_by_login("Ana.Rios") == user
     assert gateway.get_by_login("ana@CORREO.com") == user
@@ -68,6 +73,21 @@ def test_save_guarda_solo_lo_que_cambia_el_negocio(session: Session) -> None:
     saved = gateway.get(user.id)
     assert saved is not None
     assert (saved.status, saved.email_verified_at) == (AccountStatus.ACTIVE, NOW)
+
+
+def test_save_guarda_el_cambio_de_contrasena(session: Session) -> None:
+    gateway = SqlUserGateway(session)
+    user = _user()
+    _add(gateway, user)
+
+    user.change_password("hash-nuevo", NOW)
+    gateway.save(user)
+    session.flush()
+    session.expire_all()
+
+    saved = gateway.get(user.id)
+    assert saved is not None
+    assert (saved.password_hash, saved.password_changed_at) == ("hash-nuevo", NOW)
 
 
 @pytest.mark.parametrize(

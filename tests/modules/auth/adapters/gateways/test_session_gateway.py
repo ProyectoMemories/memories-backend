@@ -43,12 +43,12 @@ def user(session: Session) -> User:
     return user
 
 
-def _open(user: User) -> UserSession:
+def _open(user: User, refresh_token_hash: str = "hash-1") -> UserSession:
     return UserSession.open(
         user_id=user.id,
         platform=ClientPlatform.WEB,
         device_name="Chrome",
-        refresh_token_hash="hash-1",
+        refresh_token_hash=refresh_token_hash,
         now=NOW,
     )
 
@@ -77,3 +77,40 @@ def test_save_guarda_la_rotacion_y_la_revocacion(session: Session, user: User) -
     session.expire_all()
 
     assert gateway.get(user_session.id) == user_session
+
+
+def test_revoke_all_cierra_solo_las_sesiones_abiertas_de_esa_cuenta(
+    session: Session, user: User
+) -> None:
+    other = User.register(
+        username="luis.paz",
+        email="luis@correo.com",
+        password_hash="hash",
+        first_name="Luis",
+        paternal_surname="Paz",
+        maternal_surname=None,
+        birth_date=date(2000, 5, 17),
+    )
+    consent = PrivacyConsent.accept(user_id=other.id, policy_version="v1", now=NOW)
+    SqlUserGateway(session).add(other, consent)
+    gateway = SqlSessionGateway(session)
+    phone, laptop, already_closed, others = (
+        _open(user, "hash-phone"),
+        _open(user, "hash-laptop"),
+        _open(user, "hash-closed"),
+        _open(other, "hash-other"),
+    )
+    already_closed.revoke(NOW - timedelta(days=1))
+    for user_session in (phone, laptop, already_closed, others):
+        gateway.add(user_session)
+    session.flush()
+
+    gateway.revoke_all(user.id, NOW + timedelta(hours=1))
+    session.expire_all()
+
+    later = NOW + timedelta(hours=1)
+    assert gateway.get(phone.id).revoked_at == later  # type: ignore[union-attr]
+    assert gateway.get(laptop.id).revoked_at == later  # type: ignore[union-attr]
+    # La que ya estaba cerrada conserva su fecha; la de otra cuenta sigue abierta.
+    assert gateway.get(already_closed.id).revoked_at == NOW - timedelta(days=1)  # type: ignore[union-attr]
+    assert gateway.get(others.id).revoked_at is None  # type: ignore[union-attr]

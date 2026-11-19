@@ -1,18 +1,22 @@
 """Arma cada interactor de auth con dobles en memoria."""
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
 from app.modules.auth.entities.password_policy import PasswordPolicy
 from app.modules.auth.entities.user import AccountStatus, User
 from app.modules.auth.use_cases.authenticate import Authenticate
+from app.modules.auth.use_cases.change_password import ChangePassword
 from app.modules.auth.use_cases.log_in import LogIn
 from app.modules.auth.use_cases.log_out import LogOut
+from app.modules.auth.use_cases.password_reset_mailer import PasswordResetMailer
 from app.modules.auth.use_cases.refresh_session import RefreshSession
 from app.modules.auth.use_cases.register_user import RegisterUser
+from app.modules.auth.use_cases.request_password_reset import RequestPasswordReset
 from app.modules.auth.use_cases.resend_verification import ResendVerification
+from app.modules.auth.use_cases.reset_password import ResetPassword
 from app.modules.auth.use_cases.token_issuer import TokenIssuer
 from app.modules.auth.use_cases.verification_mailer import VerificationMailer
 from app.modules.auth.use_cases.verify_email import VerifyEmail
@@ -22,6 +26,7 @@ from tests.modules.auth.use_cases.fakes import (
     FakeClock,
     FakeEmailLinkTokens,
     FakePasswordHasher,
+    FakePasswordResetTokens,
     FakeRefreshSecrets,
     FakeUnitOfWork,
     InMemorySessionGateway,
@@ -48,6 +53,10 @@ class AuthKit:
         self.mailer = VerificationMailer(
             self.outbox, self.email_links, "http://localhost:3000"
         )
+        self.reset_tokens = FakePasswordResetTokens(self.clock)
+        self.reset_mailer = PasswordResetMailer(
+            self.outbox, self.reset_tokens, "http://localhost:3000"
+        )
 
     def add_user(
         self, status: AccountStatus = AccountStatus.ACTIVE, username: str = "ana.rios"
@@ -62,6 +71,8 @@ class AuthKit:
             birth_date=date(2000, 5, 17),
         )
         user.status = status
+        # En la base la pone DEFAULT now() al crear la cuenta.
+        user.password_changed_at = self.clock() - timedelta(days=10)
         self.users.save(user)
         return user
 
@@ -109,6 +120,30 @@ class AuthKit:
 
     def authenticate(self) -> Authenticate:
         return Authenticate(self.users, self.sessions, self.access_tokens, self.clock)
+
+    def request_password_reset(self) -> RequestPasswordReset:
+        return RequestPasswordReset(self.users, self.reset_mailer, self.clock)
+
+    def reset_password(self) -> ResetPassword:
+        return ResetPassword(
+            self.users,
+            self.sessions,
+            self.unit_of_work,
+            self.hasher,
+            PasswordPolicy({"password"}),
+            self.reset_tokens,
+            self.clock,
+        )
+
+    def change_password(self) -> ChangePassword:
+        return ChangePassword(
+            self.users,
+            self.sessions,
+            self.unit_of_work,
+            self.hasher,
+            PasswordPolicy({"password"}),
+            self.clock,
+        )
 
 
 @pytest.fixture

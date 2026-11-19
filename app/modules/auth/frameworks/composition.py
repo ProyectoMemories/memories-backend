@@ -7,8 +7,6 @@ petición, los interactores con gateways sobre esa sesión de base de datos.
 
 from sqlalchemy.orm import Session
 
-from app.modules.auth.adapters.gateways.session_gateway import SqlSessionGateway
-from app.modules.auth.adapters.gateways.user_gateway import SqlUserGateway
 from app.modules.auth.adapters.services.argon2_password_hasher import (
     Argon2PasswordHasher,
 )
@@ -16,21 +14,16 @@ from app.modules.auth.adapters.services.common_passwords import load_common_pass
 from app.modules.auth.adapters.services.jwt_tokens import (
     JwtAccessTokens,
     JwtEmailLinkTokens,
+    JwtPasswordResetTokens,
 )
 from app.modules.auth.adapters.services.sha256_refresh_secrets import (
     Sha256RefreshSecrets,
 )
 from app.modules.auth.entities.password_policy import PasswordPolicy
-from app.modules.auth.use_cases.authenticate import Authenticate
-from app.modules.auth.use_cases.log_in import LogIn
-from app.modules.auth.use_cases.log_out import LogOut
-from app.modules.auth.use_cases.refresh_session import RefreshSession
-from app.modules.auth.use_cases.register_user import RegisterUser
-from app.modules.auth.use_cases.resend_verification import ResendVerification
+from app.modules.auth.frameworks.use_case_factory import AuthUseCaseFactory
+from app.modules.auth.use_cases.password_reset_mailer import PasswordResetMailer
 from app.modules.auth.use_cases.token_issuer import TokenIssuer
 from app.modules.auth.use_cases.verification_mailer import VerificationMailer
-from app.modules.auth.use_cases.verify_email import VerifyEmail
-from app.shared.adapters.sql_unit_of_work import SqlUnitOfWork
 from app.shared.entities.clock import Clock, utc_now
 from app.shared.frameworks.config import Settings
 from app.shared.use_cases.ports import EmailSender
@@ -51,72 +44,10 @@ class AuthModule:
         self.mailer = VerificationMailer(
             email_sender, self.email_links, settings.web_app_origin
         )
+        self.reset_tokens = JwtPasswordResetTokens(settings.secret_key)
+        self.reset_mailer = PasswordResetMailer(
+            email_sender, self.reset_tokens, settings.web_app_origin
+        )
 
-    def use_cases(self, session: Session) -> "AuthUseCaseFactory":
+    def use_cases(self, session: Session) -> AuthUseCaseFactory:
         return AuthUseCaseFactory(self, session)
-
-
-class AuthUseCaseFactory:
-    """Interactores de una petición. Implementa AuthUseCases (adapters/controllers)."""
-
-    def __init__(self, module: AuthModule, session: Session) -> None:
-        self._module = module
-        self._users = SqlUserGateway(session)
-        self._sessions = SqlSessionGateway(session)
-        self._unit_of_work = SqlUnitOfWork(session)
-
-    def register_user(self) -> RegisterUser:
-        module = self._module
-        return RegisterUser(
-            self._users,
-            self._unit_of_work,
-            module.hasher,
-            module.password_policy,
-            module.mailer,
-            module.privacy_policy_version,
-            module.clock,
-        )
-
-    def verify_email(self) -> VerifyEmail:
-        module = self._module
-        return VerifyEmail(
-            self._users, self._unit_of_work, module.email_links, module.clock
-        )
-
-    def resend_verification(self) -> ResendVerification:
-        return ResendVerification(self._users, self._module.mailer, self._module.clock)
-
-    def log_in(self) -> LogIn:
-        module = self._module
-        return LogIn(
-            self._users,
-            self._sessions,
-            self._unit_of_work,
-            module.hasher,
-            module.refresh_secrets,
-            module.token_issuer,
-            module.clock,
-        )
-
-    def refresh_session(self) -> RefreshSession:
-        module = self._module
-        return RefreshSession(
-            self._users,
-            self._sessions,
-            self._unit_of_work,
-            module.refresh_secrets,
-            module.token_issuer,
-            module.clock,
-        )
-
-    def log_out(self) -> LogOut:
-        module = self._module
-        return LogOut(
-            self._sessions, self._unit_of_work, module.refresh_secrets, module.clock
-        )
-
-    def authenticate(self) -> Authenticate:
-        module = self._module
-        return Authenticate(
-            self._users, self._sessions, module.access_tokens, module.clock
-        )

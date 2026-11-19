@@ -87,3 +87,22 @@ class RefreshTokenRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     refresh_token: Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: Annotated[str, Field(min_length=1, max_length=254)]
+
+
+class ResetPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: Annotated[str, Field(min_length=1, max_length=2048)]
+    # El largo de D62-B lo revisa PasswordPolicy; este tope evita textos enormes.
+    new_password: Annotated[str, Field(max_length=1024)]
+
+
+class ChangePasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: Annotated[str, Field(min_length=1, max_length=1024)]
+    new_password: Annotated[str, Field(max_length=1024)]
