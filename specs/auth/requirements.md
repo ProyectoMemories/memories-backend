@@ -4,7 +4,8 @@
 - Requisitos: RF-01, RF-03, RF-05, RF-23, RF-24 (Lista de requisitos)
 - Reglas vigentes: RN-06, RN-07, RN-08, RN-09, RN-10, RN-11, RN-12, RN-14,
   RN-17, RN-19, RN-50, RN-51, RN-67, RN-68 (05-reglas-de-negocio)
-- Decisiones: D22, D28, D41, D56, D60, D62, D65 (01-decisiones)
+- Decisiones: D22, D28, D41, D56, D60, D62, D65, D70, D71, D72, D73, D74
+  (01-decisiones)
 - Estado: **aprobado**
 
 Fuera de este spec (van en `specs/users/`): ver y editar el perfil (RF-04),
@@ -53,6 +54,9 @@ Como persona registrada, quiero confirmar mi correo para poder entrar.
   **entonces** no cambia nada y no hay error.
 - **Dado** que mi cuenta sigue sin verificar, **cuando** pido reenviar el
   correo, **entonces** llega un enlace nuevo de 24 horas.
+- **Dado** un correo, **cuando** pido reenviar, **entonces** la respuesta llega
+  antes de que se envíe el correo, así que tarda lo mismo exista o no la
+  cuenta (D74).
 - **Dado** que desde la misma IP ya hubo 5 reenvíos en el último minuto,
   **cuando** pido otro, **entonces** se rechaza (D62-F).
 
@@ -115,6 +119,8 @@ sesión.
 
 - **Dado** un correo, **cuando** pido recuperar la contraseña, **entonces** la
   respuesta es la misma exista o no la cuenta, y si existe se envía un enlace.
+  La respuesta llega antes de que se envíe el correo, así que tampoco tarda
+  distinto (D74).
 - **Dado** un enlace con menos de 30 minutos (D62-A) y una contraseña nueva que
   cumple D62-B, **cuando** la envío, **entonces** se guarda, se revocan
   **todas** mis sesiones (RN-67) y el enlace deja de servir (RN-19).

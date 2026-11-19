@@ -199,15 +199,23 @@ app/modules/auth/
 - Reglas de la contraseña (D62-B): 8 a 64 caracteres y que no esté en una lista
   de contraseñas comunes incluida en el repositorio. Se valida en
   `entities/password_policy.py`; la lista la carga un adaptador.
-- **Límite de intentos (D62-F):** 5 por minuto por IP en `login`,
-  `password/forgot` y `verify-email/resend`, guardado en memoria del proceso.
-  [PENDIENTE registrar en el 01] También en `register` (cada registro envía un
-  correo y sin límite serviría para mandar correos en masa) y en
-  `password/change`.
+- **Límite de intentos (D62-F, D70):** 5 por minuto por IP en `login`,
+  `password/forgot`, `verify-email/resend`, `register` (cada registro envía un
+  correo y sin límite serviría para mandar correos en masa) y
+  `password/change`, guardado en memoria del proceso.
 - **Correos (D62-C):** los casos de uso usan el puerto `EmailSender`. En desarrollo
   se envía por SMTP a **Mailpit** (en Docker Compose), que captura los correos
   y los muestra en su web; en los tests, un enviador falso. El proveedor real
   se elige al desplegar.
+- **Correos después de responder (D74):** `password/forgot` y
+  `verify-email/resend` usan `DeferredEmailSender`
+  (`shared/adapters/deferred_email_sender.py`), que cumple el mismo puerto
+  `EmailSender` pero solo guarda el correo. La dependencia de cada petición
+  (`open_request_scope` en `main.py`) crea uno y programa su `flush()` con
+  `BackgroundTasks` de FastAPI, que corre después de enviar la respuesta. Los
+  casos de uso y los mailers no cambian. Si el envío falla, se registra en el
+  log sin el contenido del correo (lleva el token) y no se reintenta: la
+  persona puede pedir otro. `register` sigue enviando dentro de la petición.
 - `users` usará la dependencia de "usuario actual" que expone `auth`; no lee
   `user_session` directamente.
 
@@ -222,10 +230,13 @@ app/modules/auth/
   con varios procesos, el límite real se multiplica.
 - **Tiempo de respuesta en `password/forgot` y `verify-email/resend`:** el
   cuerpo y el código son idénticos exista o no la cuenta, pero si existe se
-  envía el correo dentro de la petición y la respuesta tarda más. Esa
-  diferencia podría revelar qué correos tienen cuenta. [PENDIENTE] Aceptarlo
-  para el MVP o enviar los correos fuera de la petición (por ejemplo, con
-  `BackgroundTasks` de FastAPI); lo decide el equipo.
+  enviaba el correo dentro de la petición y la respuesta tardaba más, lo que
+  podía revelar qué correos tienen cuenta. Resuelto con D74: el correo sale
+  después de responder. Queda una diferencia de una consulta y la firma de un
+  token (milisegundos), despreciable frente al envío SMTP.
+- **Correo en segundo plano que falla (D74):** la persona ya recibió la
+  respuesta y no se entera; solo queda en el log. Riesgo aceptado: la respuesta
+  ya es la misma exista o no la cuenta, y puede pedir otro correo.
 - **Enlace de recuperación y suspensión:** un enlace pedido antes de suspender
   la cuenta todavía cambia la contraseña. Es inofensivo, porque la cuenta
   suspendida igual no puede entrar (RN-17).

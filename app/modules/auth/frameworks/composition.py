@@ -21,7 +21,6 @@ from app.modules.auth.adapters.services.sha256_refresh_secrets import (
 )
 from app.modules.auth.entities.password_policy import PasswordPolicy
 from app.modules.auth.frameworks.use_case_factory import AuthUseCaseFactory
-from app.modules.auth.use_cases.password_reset_mailer import PasswordResetMailer
 from app.modules.auth.use_cases.token_issuer import TokenIssuer
 from app.modules.auth.use_cases.verification_mailer import VerificationMailer
 from app.shared.entities.clock import Clock, utc_now
@@ -35,6 +34,7 @@ class AuthModule:
     ) -> None:
         self.clock = clock
         self.privacy_policy_version = settings.privacy_policy_version
+        self.web_app_origin = settings.web_app_origin
         self.hasher = Argon2PasswordHasher()
         self.password_policy = PasswordPolicy(load_common_passwords())
         self.refresh_secrets = Sha256RefreshSecrets()
@@ -45,9 +45,9 @@ class AuthModule:
             email_sender, self.email_links, settings.web_app_origin
         )
         self.reset_tokens = JwtPasswordResetTokens(settings.secret_key)
-        self.reset_mailer = PasswordResetMailer(
-            email_sender, self.reset_tokens, settings.web_app_origin
-        )
 
-    def use_cases(self, session: Session) -> AuthUseCaseFactory:
-        return AuthUseCaseFactory(self, session)
+    def use_cases(
+        self, session: Session, deferred_email: EmailSender
+    ) -> AuthUseCaseFactory:
+        """`deferred_email` envía después de responder (D74)."""
+        return AuthUseCaseFactory(self, session, deferred_email)

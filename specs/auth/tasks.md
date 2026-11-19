@@ -73,6 +73,15 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
       nada; correcta revoca todas (también la propia); sin token → 401; sexto
       intento en un minuto → 429
 
+## Correos después de responder (D74)
+
+- [x] `DeferredEmailSender` guarda los correos y los envía con `flush()` ·
+      tests: `send` no envía; `flush` envía en orden y vacía la lista; si uno
+      falla, se registra sin el contenido y sigue con el siguiente
+- [x] `forgot` y `resend` usan el enviador diferido; `register`, el directo ·
+      tests: la respuesta HTTP sale antes que el correo en `forgot` y
+      `resend`; con el SMTP caído siguen respondiendo 202
+
 ## Correcciones
 
 - [x] El token de acceso deja de servir al cerrar la sesión (se revisa la
