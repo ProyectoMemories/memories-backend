@@ -17,6 +17,7 @@
       "Bash(ruff check *)",
       "Bash(ruff format *)",
       "Bash(lint-imports)",
+      "Bash(mypy)",
       "Bash(pytest)",
       "Bash(pytest *)",
       "Bash(git status)",
