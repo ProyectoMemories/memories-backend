@@ -130,18 +130,36 @@ secreto es aleatorio y largo, no necesita un hash lento como las contraseñas.
 Cada token lleva su propósito, para que uno de verificación no sirva para
 recuperar la contraseña.
 
-## 5. Capas
+## 5. Capas (Clean Architecture, CLAUDE.md §5 y §7)
 
 ```
 app/modules/auth/
-├── router.py        endpoints, cookies, lectura de Origin
-├── service.py       registro, verificación, login, rotación, logout, contraseñas
-├── repository.py    app_user, privacy_consent, user_session
-├── models.py        modelos SQLAlchemy de esas tres tablas
-└── schemas.py       entrada y salida
+├── entities/                  Enterprise Business Rules
+│   ├── user.py                User y AccountStatus: verificar, permitir login, reactivar
+│   ├── user_session.py        UserSession y ClientPlatform: abrir, rotar, revocar
+│   ├── privacy_consent.py     PrivacyConsent (RN-50)
+│   ├── age_policy.py          edad mínima (RN-08)
+│   ├── password_policy.py     8 a 64 caracteres y contraseñas comunes (D62-B)
+│   └── errors.py              errores de negocio
+├── use_cases/                 Application Business Rules
+│   ├── ports.py               UserGateway, SessionGateway, PasswordHasher,
+│   │                          AccessTokens, EmailLinkTokens, RefreshSecrets
+│   ├── errors.py              credenciales, enlaces y sesiones inválidas
+│   ├── register_user.py · verify_email.py · resend_verification.py
+│   ├── log_in.py · refresh_session.py · log_out.py · authenticate.py
+│   ├── refresh_token.py       formato "<id de sesión>.<secreto>"
+│   ├── token_issuer.py        arma el JWT de acceso y el token de renovación
+│   └── verification_mailer.py correo con el enlace de verificación
+├── adapters/                  Interface Adapters
+│   ├── controllers/           routers FastAPI, CurrentUser, cookie y Origin (CSRF)
+│   ├── presenters/            esquemas Pydantic y tokens → respuesta (cuerpo o cookie)
+│   ├── gateways/              modelos ORM y gateways SQLAlchemy de las tres tablas
+│   └── services/              Argon2 (pwdlib), JWT (PyJWT), secretos de renovación
+└── frameworks/
+    └── composition.py         crea los adaptadores y los interactores por petición
 ```
 
-- La edad mínima (RN-08) se valida en el servicio, no en la base (el `.sql` lo
+- La edad mínima (RN-08) se valida en `entities/age_policy.py`, no en la base (el `.sql` lo
   deja fuera a propósito: la edad cambia con el tiempo).
 - El formato del nombre de usuario se valida en el schema **y** lo impone la
   base (`ck_app_user_username_format`).
@@ -149,12 +167,13 @@ app/modules/auth/
   interfaz pequeña para poder cambiar el algoritmo (RNF-08). Al iniciar sesión,
   si el hash guardado usa parámetros viejos, se vuelve a calcular.
 - Reglas de la contraseña (D62-B): 8 a 64 caracteres y que no esté en una lista
-  de contraseñas comunes incluida en el repositorio. Se valida en el servicio.
+  de contraseñas comunes incluida en el repositorio. Se valida en
+  `entities/password_policy.py`; la lista la carga un adaptador.
 - **Límite de intentos (D62-F):** 5 por minuto por IP en `login`,
   `password/forgot` y `verify-email/resend`, guardado en memoria del proceso.
   [PENDIENTE registrar en el 01] También en `register`: cada registro envía un
   correo y sin límite serviría para mandar correos en masa.
-- **Correos (D62-C):** el servicio usa una interfaz `send_email`. En desarrollo
+- **Correos (D62-C):** los casos de uso usan el puerto `EmailSender`. En desarrollo
   se envía por SMTP a **Mailpit** (en Docker Compose), que captura los correos
   y los muestra en su web; en los tests, un enviador falso. El proveedor real
   se elige al desplegar.

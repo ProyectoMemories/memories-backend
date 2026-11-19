@@ -48,6 +48,15 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
       cookie con sus atributos
 - [x] `POST /auth/logout` · tests: revoca solo esa sesión, es idempotente
 
+## Clean Architecture (aprobada el 2026-11-19)
+
+- [ ] Mover `auth` y lo común a `entities/`, `use_cases/`, `adapters/` y
+      `frameworks/` sin cambiar el comportamiento · tests: las pruebas de la API
+      siguen en verde; unitarias nuevas de entidades e interactores con dobles
+      en memoria
+- [ ] `import-linter` en el CI · test: `lint-imports` falla si un círculo
+      importa a uno de afuera
+
 ## Contraseña
 
 - [ ] `POST /auth/password/forgot` y `/reset` · tests: respuesta igual exista o

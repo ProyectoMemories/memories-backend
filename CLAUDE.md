@@ -79,6 +79,7 @@ los tres lo deciden.
 pip install -r requirements-dev.txt   # herramientas (versiones fijadas)
 ruff check .                          # lint
 ruff format .                         # formato (el CI usa --check)
+lint-imports                          # regla de dependencias de Clean Architecture
 pytest                                # pruebas
 ```
 
@@ -92,7 +93,7 @@ uvicorn app.main:create_app --factory --reload   # API sin Docker
 
 - La app se arma con la fábrica `create_app(settings)`: en las pruebas se le
   pasa un `Settings` propio, sin depender del entorno.
-- La configuración vive en `app/config.py` y solo se lee de variables de
+- La configuración vive en `app/shared/frameworks/config.py` y solo se lee de variables de
   entorno. Toda variable nueva va también en `.env.example`.
 
 `docker compose down -v` borra los datos: **pide confirmación antes de
@@ -111,11 +112,16 @@ alembic revision -m "descripcion"               # nueva migración (vacía, a ma
 
 No inventes comandos que el repositorio todavía no tiene.
 
-El CI (`.github/workflows/ci.yml`) corre `ruff`, `pytest` y `docker-compose`
+El CI (`.github/workflows/ci.yml`) corre `ruff` (con `lint-imports`), `pytest` y `docker-compose`
 (levanta el entorno y comprueba cada servicio) en cada PR; deben pasar antes de
 fusionar (D61).
 
 ## 5. Estructura (respétala)
+
+El backend sigue **Clean Architecture** (Robert C. Martin) dentro de un
+monolito modular (D13; Clean Architecture aprobada por el equipo el
+2026-11-19, pendiente de registrar en el 01). Cada módulo y `shared/` tienen
+los cuatro círculos del modelo, uno por carpeta:
 
 ```
 CLAUDE.md / CLAUDE.local.md   memoria del proyecto / personal (local, en .gitignore)
@@ -126,23 +132,23 @@ specs/<feature>/              requirements.md, design.md, tasks.md
 alembic.ini · alembic/versions/   migraciones (0001 = modelo v1.5)
 tests/                        espejo de app/
 app/
-├── main.py                   app FastAPI y montaje de routers
-├── config.py                 configuración por variables de entorno
-├── db.py                     sesión de SQLAlchemy, Base de los modelos, ids UUIDv7
-├── errors.py                 AppError y formato {code, message}
-├── email.py                  envío de correos (SMTP; Mailpit en local)
-├── rate_limit.py             límite de intentos por IP, en memoria (D62-F)
-├── storage/                  puerto de almacenamiento + adaptador S3
+├── main.py                   raíz de composición: arma la app y monta los módulos
+├── shared/                   lo común a todos los módulos, con los mismos círculos
+│   ├── entities/             errores base (AppError y categorías), ids UUIDv7, reloj
+│   ├── use_cases/            puertos comunes: EmailSender, UnitOfWork
+│   ├── adapters/             base ORM, SMTP, límite de intentos, errores → HTTP
+│   └── frameworks/           configuración (variables de entorno) y motor de base
 └── modules/<modulo>/         auth, users, albums, memories
-    ├── router.py             HTTP: valida entrada, llama al servicio
-    ├── service.py            reglas de negocio, sin FastAPI
-    ├── repository.py         único que toca la base de datos
-    ├── models.py             modelos SQLAlchemy
-    └── schemas.py            esquemas Pydantic de entrada y salida
+    ├── entities/             Enterprise Business Rules: entidades y reglas puras
+    ├── use_cases/            Application Business Rules: un interactor por archivo
+    │   └── ports.py          interfaces que los interactores necesitan (gateways y servicios)
+    ├── adapters/             Interface Adapters
+    │   ├── controllers/      routers FastAPI: reciben HTTP y llaman al interactor
+    │   ├── presenters/       esquemas Pydantic y salida del interactor → respuesta HTTP
+    │   ├── gateways/         repositorios SQLAlchemy y modelos ORM; implementan los puertos
+    │   └── services/         adaptadores de librerías externas (hash, JWT…); implementan puertos
+    └── frameworks/           Frameworks & Drivers: composition.py conecta puertos y adaptadores
 ```
-
-Un módulo puede tener archivos de apoyo de su dominio (por ejemplo,
-`auth/passwords.py` y `auth/tokens.py`), siempre sin FastAPI ni base de datos.
 
 - No crees carpetas ni archivos de primer nivel sin preguntar.
 - Nunca subas `.env`, `CLAUDE.local.md` ni `.claude/settings.local.json`.
@@ -169,17 +175,47 @@ Un módulo puede tener archivos de apoyo de su dominio (por ejemplo,
 
 ## 7. Reglas de arquitectura
 
-Monolito modular (D13): cada módulo sigue `router → service → repository`.
+**Regla de dependencias:** cada círculo solo importa a los de adentro.
+`frameworks → adapters → use_cases → entities`. Nada de adentro conoce algo
+de afuera. `import-linter` lo revisa en el CI (`lint-imports`, contratos en
+`pyproject.toml`).
 
-- El **servicio** tiene las reglas de negocio y no importa FastAPI.
-- Solo el **repositorio** accede a la base de datos.
-- Un módulo **no usa el repositorio de otro**: si necesita algo, llama a su
-  servicio.
-- La lógica de negocio nunca va en el router ni en el repositorio.
-- SOLID con criterio: nada de abstracciones sin un segundo caso de uso real.
-- Funciones pequeñas, nombres explícitos, sin código muerto. Un comentario
-  explica **por qué**, no **qué**.
-- Errores explícitos: nada de `except` vacíos.
+- **entities/**: Python puro. Sin FastAPI, SQLAlchemy, Pydantic ni librerías
+  de infraestructura. Las entidades tienen comportamiento (por ejemplo,
+  `user.verify_email(now)`), no son solo datos. Aquí van las reglas de
+  negocio (RN) y sus errores.
+- **use_cases/**: un interactor por archivo, una clase con `execute()` y sus
+  datos de entrada y salida (dataclasses). Habla con el exterior solo por los
+  **puertos** (`Protocol`) de `ports.py`. No sabe de HTTP ni de SQL. Confirma
+  la transacción con el puerto `UnitOfWork`.
+- **adapters/**: traducen entre el mundo exterior y los casos de uso.
+  - `controllers/`: validan la entrada con Pydantic y llaman al interactor.
+    Nunca contienen reglas de negocio.
+  - `presenters/`: convierten la salida del interactor en la respuesta HTTP.
+  - `gateways/`: implementan los puertos de persistencia con SQLAlchemy y
+    traducen entre modelos ORM y entidades. Son los únicos que tocan la base.
+  - `services/`: implementan los demás puertos con librerías externas (pwdlib,
+    PyJWT, smtplib).
+- **frameworks/**: arman todo. `composition.py` crea los adaptadores y los
+  interactores, y `main.py` los conecta con FastAPI. Los controllers reciben
+  los interactores por inyección de dependencias, sin importar `frameworks/`.
+- **Entre módulos:** un módulo usa otro solo a través de sus interactores o de
+  la dependencia `CurrentUser` de `auth`. Nunca importa sus entidades,
+  gateways ni modelos ORM.
+- **Puertos solo en las fronteras** (base de datos, correo, hash, tokens,
+  reloj). Dentro de un círculo no se agregan abstracciones especulativas.
+
+**Clean Code:**
+
+- Archivos cortos: uno por interactor, por gateway y por adaptador, de unas
+  150 líneas como máximo. Si crece, se divide.
+- Funciones pequeñas (unas 20 líneas) que hacen una sola cosa, con nombres
+  explícitos que dicen qué hacen, sin abreviaturas.
+- Sin código muerto. Un comentario explica **por qué**, no **qué**.
+- Errores explícitos: nada de `except` vacíos. Cada error de negocio es una
+  clase con su `code`; las categorías de `shared/entities/errors.py`
+  (`ConflictError`, `UnauthorizedError`…) deciden el código HTTP en
+  `shared/adapters`, nunca en el dominio.
 
 ## 8. Base de datos
 
@@ -198,7 +234,7 @@ Monolito modular (D13): cada módulo sigue `router → service → repository`.
 - Nombres de restricciones: `pk_`, `fk_`, `uq_`, `ck_`, `ix_` + tabla + detalle,
   igual que en el modelo físico.
 - Las reglas que la base **no** impone (listadas al final del `.sql`) viven en
-  el servicio y cada una tiene su test: edad mínima, 0 a 10 fotos por recuerdo,
+  las entidades o los casos de uso y cada una tiene su test: edad mínima, 0 a 10 fotos por recuerdo,
   recuerdos sin endpoints de edición, vencimientos de invitaciones y enlaces,
   aviso anual y rotación de sesiones.
 
@@ -247,8 +283,10 @@ Monolito modular (D13): cada módulo sigue `router → service → repository`.
 
 - pytest (D48). Toda lógica nueva lleva test; un bug arreglado lleva un test que
   lo reproduce.
-- Unitarias para los servicios; de integración contra PostgreSQL 18 real para
-  la API y las migraciones.
+- `entities/` y `use_cases/`: pruebas unitarias con dobles en memoria de los
+  puertos, sin base de datos.
+- `adapters/`: de integración contra PostgreSQL 18 real (gateways) y de punta
+  a punta por HTTP (controllers). Las migraciones también contra PostgreSQL.
 
 ## 12. Git
 
