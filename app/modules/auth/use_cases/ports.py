@@ -18,6 +18,7 @@ class TokenPurpose(StrEnum):
     """Para qué sirve un enlace de correo: uno nunca vale por otro."""
 
     VERIFY_EMAIL = "verify_email"
+    RESET_PASSWORD = "reset_password"  # noqa: S105 (es un propósito, no una clave)
 
 
 class TokenExpiredError(Exception):
@@ -30,6 +31,10 @@ class TokenInvalidError(Exception):
 
 class UserGateway(Protocol):
     def get(self, user_id: uuid.UUID) -> User | None: ...
+
+    def get_for_update(self, user_id: uuid.UUID) -> User | None:
+        """Bloquea la cuenta: dos cambios de contraseña a la vez van de a uno."""
+        ...
 
     def get_by_email(self, email: str) -> User | None: ...
 
@@ -54,6 +59,10 @@ class SessionGateway(Protocol):
         ...
 
     def save(self, user_session: UserSession) -> None: ...
+
+    def revoke_all(self, user_id: uuid.UUID, now: datetime) -> None:
+        """Cierra todas las sesiones abiertas de la cuenta (RN-67)."""
+        ...
 
 
 class PasswordHasher(Protocol):
@@ -98,6 +107,25 @@ class EmailLinkTokens(Protocol):
 
     def read(self, token: str, purpose: TokenPurpose) -> uuid.UUID:
         """Id del usuario. Lanza TokenExpiredError o TokenInvalidError."""
+        ...
+
+
+class PasswordResetTokens(Protocol):
+    """Enlace de recuperación ligado a la fecha del último cambio (RN-19)."""
+
+    def create(
+        self,
+        user_id: uuid.UUID,
+        password_changed_at: datetime | None,
+        lifetime: timedelta,
+        now: datetime,
+    ) -> str: ...
+
+    def read(self, token: str) -> tuple[uuid.UUID, datetime | None]:
+        """(id de usuario, password_changed_at con que se emitió).
+
+        Lanza TokenExpiredError o TokenInvalidError.
+        """
         ...
 
 

@@ -92,3 +92,36 @@ def test_pasados_30_dias_ya_no_se_puede_cancelar() -> None:
     with pytest.raises(DeletionPeriodOverError):
         user.admit_login(NOW)
     assert user.status is AccountStatus.PENDING_DELETION
+
+
+def test_cambiar_la_contrasena_mueve_la_fecha() -> None:
+    user = _user()
+
+    user.change_password("hash-nuevo", NOW)
+
+    assert (user.password_hash, user.password_changed_at) == ("hash-nuevo", NOW)
+
+
+def test_rehacer_el_hash_no_cuenta_como_cambio() -> None:
+    user = _user()
+
+    user.replace_password_hash("hash-al-dia")
+
+    assert user.password_hash == "hash-al-dia"
+    assert user.password_changed_at is None
+
+
+@pytest.mark.parametrize(
+    ("status", "can_recover"),
+    [
+        (AccountStatus.ACTIVE, True),
+        (AccountStatus.UNVERIFIED, True),
+        (AccountStatus.DEACTIVATED, True),
+        (AccountStatus.PENDING_DELETION, True),
+        (AccountStatus.SUSPENDED, False),
+    ],
+)
+def test_quien_puede_recuperar_la_contrasena(
+    status: AccountStatus, can_recover: bool
+) -> None:
+    assert _user(status).can_recover_password is can_recover

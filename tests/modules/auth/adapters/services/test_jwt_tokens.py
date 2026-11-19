@@ -7,6 +7,7 @@ import pytest
 from app.modules.auth.adapters.services.jwt_tokens import (
     JwtAccessTokens,
     JwtEmailLinkTokens,
+    JwtPasswordResetTokens,
 )
 from app.modules.auth.use_cases.ports import (
     TokenExpiredError,
@@ -114,3 +115,35 @@ def test_un_enlace_no_sirve_como_acceso_ni_al_reves() -> None:
         access.read(_link())
     with pytest.raises(TokenInvalidError):
         links.read(_access(), VERIFY)
+
+
+# ─── Enlace de recuperación ────────────────────────────────────────────────
+
+resets = JwtPasswordResetTokens(SECRET)
+CHANGED_AT = datetime(2026, 11, 19, 12, 0, 0, 123456, tzinfo=UTC)
+
+
+def _reset(
+    changed_at: datetime | None = CHANGED_AT,
+    lifetime: timedelta = timedelta(minutes=30),
+) -> str:
+    return resets.create(USER_ID, changed_at, lifetime, datetime.now(UTC))
+
+
+def test_enlace_de_recuperacion_trae_la_fecha_exacta() -> None:
+    assert resets.read(_reset()) == (USER_ID, CHANGED_AT)
+    assert resets.read(_reset(changed_at=None)) == (USER_ID, None)
+
+
+def test_enlace_de_recuperacion_vencido() -> None:
+    with pytest.raises(TokenExpiredError):
+        resets.read(_reset(lifetime=timedelta(seconds=-1)))
+
+
+def test_verificacion_y_recuperacion_no_se_confunden() -> None:
+    with pytest.raises(TokenInvalidError):
+        resets.read(_link())
+    with pytest.raises(TokenInvalidError):
+        links.read(_reset(), VERIFY)
+    with pytest.raises(TokenInvalidError):
+        access.read(_reset())

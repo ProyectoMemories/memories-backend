@@ -28,6 +28,10 @@ class SqlUserGateway:
         record = self._session.get(UserRecord, user_id)
         return mappers.user_to_entity(record) if record else None
 
+    def get_for_update(self, user_id: uuid.UUID) -> User | None:
+        record = self._session.get(UserRecord, user_id, with_for_update=True)
+        return mappers.user_to_entity(record) if record else None
+
     def get_by_email(self, email: str) -> User | None:
         # lower() usa el índice uq_app_user_email_ci (RN-09).
         return self._one(func.lower(UserRecord.email) == email.lower())

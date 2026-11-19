@@ -120,6 +120,9 @@ sesión.
   **todas** mis sesiones (RN-67) y el enlace deja de servir (RN-19).
 - **Dado** un enlace vencido, alterado o ya usado, **cuando** lo uso,
   **entonces** se rechaza.
+- **Dado** que mi cuenta está suspendida, **cuando** pido recuperar la
+  contraseña, **entonces** la respuesta es la misma pero no se envía nada
+  (RN-17).
 - **Dado** que desde la misma IP ya hubo 5 pedidos de recuperación en el último
   minuto, **cuando** pido otro, **entonces** se rechaza (D62-F).
 
@@ -130,4 +133,8 @@ sesión.
   revocan todas mis sesiones.
 - **Dado** una contraseña actual incorrecta, **cuando** intento cambiarla,
   **entonces** se rechaza y no se revoca nada.
+- **Dado** que desde la misma IP ya hubo 5 cambios de contraseña en el último
+  minuto, **cuando** intento otro, **entonces** se rechaza (D62-F).
+- **Dado** que cambié la contraseña, **cuando** uso el token de acceso o el de
+  renovación que tenía antes, **entonces** se rechazan (RN-67).
 

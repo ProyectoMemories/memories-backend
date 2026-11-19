@@ -59,10 +59,19 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
 
 ## Contraseña
 
-- [ ] `POST /auth/password/forgot` y `/reset` · tests: respuesta igual exista o
-      no la cuenta, revoca todas las sesiones, enlace usado ya no sirve
-- [ ] `POST /auth/password/change` · tests: actual incorrecta no revoca nada;
-      correcta revoca todas
+- [x] `User.change_password()` actualiza el hash y `password_changed_at` ·
+      test de entidad
+- [x] Puertos `PasswordResetTokens` y `SessionGateway.revoke_all` con sus
+      adaptadores · tests: token vencido, alterado y con otra fecha se rechaza;
+      revoke_all cierra solo las sesiones abiertas de esa cuenta
+- [x] `POST /auth/password/forgot` · tests: misma respuesta exista o no la
+      cuenta, suspendida no recibe correo, sexto pedido en un minuto → 429
+- [x] `POST /auth/password/reset` · tests: guarda la contraseña, revoca todas
+      las sesiones (Android y web), el enlace usado ya no sirve, vencido y
+      alterado se rechazan, contraseña común se rechaza
+- [x] `POST /auth/password/change` · tests: actual incorrecta → 422 y no revoca
+      nada; correcta revoca todas (también la propia); sin token → 401; sexto
+      intento en un minuto → 429
 
 ## Correcciones
 

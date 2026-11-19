@@ -1,7 +1,9 @@
 """SessionGateway con SQLAlchemy: user_session."""
 
 import uuid
+from datetime import datetime
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.modules.auth.adapters.gateways import mappers
@@ -29,3 +31,14 @@ class SqlSessionGateway:
         if record is None:
             raise LookupError(f"No existe la sesión {user_session.id}")
         mappers.copy_session_changes(user_session, record)
+
+    def revoke_all(self, user_id: uuid.UUID, now: datetime) -> None:
+        # Un solo UPDATE: no hace falta traer las sesiones para cerrarlas.
+        self._session.execute(
+            update(UserSessionRecord)
+            .where(
+                UserSessionRecord.user_id == user_id,
+                UserSessionRecord.revoked_at.is_(None),
+            )
+            .values(revoked_at=now)
+        )

@@ -70,6 +70,32 @@ firmados** de vida corta (RN-19), igual que en el modelo físico.
 - Para no revelar si la cuenta existe por el tiempo de respuesta, un login con
   un usuario inexistente igual calcula un hash.
 
+### Recuperar y cambiar la contraseña (HU-06, HU-07)
+
+[PROPUESTA aprobada por el equipo el 2026-11-19, pendiente de registrar en el
+01]
+
+- `password/forgot` recibe `{"email"}` y responde **202 siempre**. Si la cuenta
+  existe y no está suspendida, envía un enlace a `/reset-password?token=...` de
+  la app web (igual que D65). Una cuenta suspendida no recibe nada: igual no
+  puede entrar (RN-17). Recuperar la contraseña no cambia el estado de la
+  cuenta.
+- `password/reset` recibe `{"token", "new_password"}` y responde **204**.
+- `password/change` exige el token de acceso, recibe
+  `{"current_password", "new_password"}` y responde **204**. Con la actual
+  incorrecta responde **422 `current_password_incorrect`**, no 401: la app
+  trata un 401 como un problema de sesión.
+- Los dos guardan la contraseña nueva (D62-B), actualizan
+  `password_changed_at` y revocan **todas** las sesiones, también la de quien
+  hizo el cambio (RN-67): la app debe volver al login.
+- **Enlace de un solo uso sin tabla (RN-19):** el token lleva
+  `password_changed_at` del momento en que se pidió. Si al usarlo ya no
+  coincide (porque se usó o porque la contraseña cambió por otro camino), se
+  rechaza con `invalid_token`.
+- **Límite de intentos (D62-F):** 5 por minuto por IP en `password/forgot` y
+  también en `password/change`, para que un token robado no sirva para probar
+  contraseñas.
+
 ### Cómo viaja el token de renovación (D56)
 
 - **Android:** en el cuerpo de la respuesta de `login` y `refresh`; el cliente
@@ -143,20 +169,24 @@ app/modules/auth/
 │   └── errors.py              errores de negocio
 ├── use_cases/                 Application Business Rules
 │   ├── ports.py               UserGateway, SessionGateway, PasswordHasher,
-│   │                          AccessTokens, EmailLinkTokens, RefreshSecrets
+│   │                          AccessTokens, EmailLinkTokens,
+│   │                          PasswordResetTokens, RefreshSecrets
 │   ├── errors.py              credenciales, enlaces y sesiones inválidas
 │   ├── register_user.py · verify_email.py · resend_verification.py
 │   ├── log_in.py · refresh_session.py · log_out.py · authenticate.py
+│   ├── request_password_reset.py · reset_password.py · change_password.py
 │   ├── refresh_token.py       formato "<id de sesión>.<secreto>"
 │   ├── token_issuer.py        arma el JWT de acceso y el token de renovación
-│   └── verification_mailer.py correo con el enlace de verificación
+│   ├── verification_mailer.py correo con el enlace de verificación
+│   └── password_reset_mailer.py correo con el enlace de recuperación
 ├── adapters/                  Interface Adapters
 │   ├── controllers/           routers FastAPI, CurrentUser, cookie y Origin (CSRF)
 │   ├── presenters/            esquemas Pydantic y tokens → respuesta (cuerpo o cookie)
 │   ├── gateways/              modelos ORM y gateways SQLAlchemy de las tres tablas
 │   └── services/              Argon2 (pwdlib), JWT (PyJWT), secretos de renovación
 └── frameworks/
-    └── composition.py         crea los adaptadores y los interactores por petición
+    ├── composition.py         crea una vez los adaptadores sin estado (AuthModule)
+    └── use_case_factory.py    arma los interactores de cada petición
 ```
 
 - La edad mínima (RN-08) se valida en `entities/age_policy.py`, no en la base (el `.sql` lo
@@ -171,8 +201,9 @@ app/modules/auth/
   `entities/password_policy.py`; la lista la carga un adaptador.
 - **Límite de intentos (D62-F):** 5 por minuto por IP en `login`,
   `password/forgot` y `verify-email/resend`, guardado en memoria del proceso.
-  [PENDIENTE registrar en el 01] También en `register`: cada registro envía un
-  correo y sin límite serviría para mandar correos en masa.
+  [PENDIENTE registrar en el 01] También en `register` (cada registro envía un
+  correo y sin límite serviría para mandar correos en masa) y en
+  `password/change`.
 - **Correos (D62-C):** los casos de uso usan el puerto `EmailSender`. En desarrollo
   se envía por SMTP a **Mailpit** (en Docker Compose), que captura los correos
   y los muestra en su web; en los tests, un enviador falso. El proveedor real
@@ -189,6 +220,17 @@ app/modules/auth/
 - **Límite de intentos en memoria:** cada proceso cuenta por separado y se
   pierde al reiniciar. Alcanza para un solo proceso en el MVP; si la API corre
   con varios procesos, el límite real se multiplica.
+- **Tiempo de respuesta en `password/forgot` y `verify-email/resend`:** el
+  cuerpo y el código son idénticos exista o no la cuenta, pero si existe se
+  envía el correo dentro de la petición y la respuesta tarda más. Esa
+  diferencia podría revelar qué correos tienen cuenta. [PENDIENTE] Aceptarlo
+  para el MVP o enviar los correos fuera de la petición (por ejemplo, con
+  `BackgroundTasks` de FastAPI); lo decide el equipo.
+- **Enlace de recuperación y suspensión:** un enlace pedido antes de suspender
+  la cuenta todavía cambia la contraseña. Es inofensivo, porque la cuenta
+  suspendida igual no puede entrar (RN-17).
+- **Dos usos simultáneos del mismo enlace:** se cubren leyendo la cuenta con
+  `FOR UPDATE`; el segundo ya ve la fecha nueva y se rechaza (RN-19).
 - **Carrera en la rotación:** dos `refresh` simultáneos con el mismo token
   pueden revocar una sesión legítima (por ejemplo, dos pestañas). Es el costo
   aceptado de detectar reuso; el cliente debe serializar las renovaciones. En
