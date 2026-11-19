@@ -13,9 +13,9 @@ from psycopg import sql
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
-from app.config import Settings
-from app.email import EmailMessage
 from app.main import create_app
+from app.shared.frameworks.config import Settings
+from app.shared.use_cases.ports import EmailDeliveryError, EmailMessage
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,12 +37,18 @@ def make_settings(database_url: str = DATABASE_URL) -> Settings:
 
 
 class FakeEmailSender:
-    """Guarda los correos en una lista en lugar de enviarlos."""
+    """Guarda los correos en una lista en lugar de enviarlos.
+
+    Con `failing = True` simula un servidor de correo caído.
+    """
 
     def __init__(self) -> None:
         self.sent: list[EmailMessage] = []
+        self.failing = False
 
     def send(self, message: EmailMessage) -> None:
+        if self.failing:
+            raise EmailDeliveryError("SMTP apagado")
         self.sent.append(message)
 
 
