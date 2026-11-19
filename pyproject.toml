@@ -27,3 +27,63 @@ addopts = "-ra --strict-markers"
 # Las advertencias de las librerías se ven como errores para enterarnos a tiempo.
 filterwarnings = ["error"]
 
+# Regla de dependencias de Clean Architecture (CLAUDE.md §7): cada círculo
+# solo importa a los de adentro. `lint-imports` falla si alguien la rompe.
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "auth: frameworks → adapters → use_cases → entities"
+type = "layers"
+layers = [
+    "app.modules.auth.frameworks",
+    "app.modules.auth.adapters",
+    "app.modules.auth.use_cases",
+    "app.modules.auth.entities",
+]
+
+[[tool.importlinter.contracts]]
+name = "shared: frameworks → adapters → use_cases → entities"
+type = "layers"
+layers = [
+    "app.shared.frameworks",
+    "app.shared.adapters",
+    "app.shared.use_cases",
+    "app.shared.entities",
+]
+
+[[tool.importlinter.contracts]]
+name = "Las entidades son Python puro"
+type = "forbidden"
+source_modules = ["app.modules.auth.entities", "app.shared.entities"]
+forbidden_modules = [
+    "fastapi", "starlette", "pydantic", "pydantic_settings", "sqlalchemy",
+    "psycopg", "jwt", "pwdlib",
+    "app.modules.auth.use_cases", "app.modules.auth.adapters",
+    "app.modules.auth.frameworks",
+    "app.shared.use_cases", "app.shared.adapters", "app.shared.frameworks",
+]
+
+[[tool.importlinter.contracts]]
+name = "Los casos de uso no saben de HTTP, SQL ni librerías externas"
+type = "forbidden"
+source_modules = ["app.modules.auth.use_cases", "app.shared.use_cases"]
+forbidden_modules = [
+    "fastapi", "starlette", "pydantic", "pydantic_settings", "sqlalchemy",
+    "psycopg", "jwt", "pwdlib",
+    "app.modules.auth.adapters", "app.modules.auth.frameworks",
+    "app.shared.adapters", "app.shared.frameworks",
+]
+
+[[tool.importlinter.contracts]]
+name = "Los adaptadores no dependen de frameworks/"
+type = "forbidden"
+source_modules = ["app.modules.auth.adapters", "app.shared.adapters"]
+forbidden_modules = ["app.modules.auth.frameworks", "app.shared.frameworks", "app.main"]
+
+[[tool.importlinter.contracts]]
+name = "shared/ no depende de ningún módulo"
+type = "forbidden"
+source_modules = ["app.shared"]
+forbidden_modules = ["app.modules"]

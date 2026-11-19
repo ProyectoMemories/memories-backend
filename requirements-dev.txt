@@ -5,3 +5,5 @@ ruff==0.17.3
 pytest==9.2.0
 # Cliente HTTP que usa el TestClient de FastAPI (Starlette pide httpx2).
 httpx2==2.14.0
+# Hace cumplir la regla de dependencias de Clean Architecture (lint-imports).
+import-linter==2.15

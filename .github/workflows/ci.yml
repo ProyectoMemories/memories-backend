@@ -37,6 +37,8 @@ jobs:
         run: ruff check .
       - name: Formato
         run: ruff format --check .
+      - name: Regla de dependencias (Clean Architecture)
+        run: lint-imports
 
   pytest:
     name: pytest
