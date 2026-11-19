@@ -259,6 +259,30 @@ cookie desde la app web (`WEB_APP_ORIGIN`, `localhost:3000`). Esa es la
 protección CSRF funcionando. La renovación web de punta a punta se prueba con
 la app Flutter.
 
+### Recuperar y cambiar la contraseña
+
+**Recuperar** (sin sesión):
+
+1. `POST /api/v1/auth/password/forgot` con `{"email": "ana@correo.com"}`:
+   responde **202** siempre, exista o no la cuenta.
+2. En Mailpit (http://localhost:8025) llega "Crea una contraseña nueva en
+   Memories". Copia lo que va después de `token=` (el enlace vence en 30
+   minutos).
+3. `POST /api/v1/auth/password/reset` con
+   `{"token": "...", "new_password": "otra frase larga y nueva"}`: **204**.
+   Todas tus sesiones se cierran; entra de nuevo con la contraseña nueva.
+4. Usa el mismo enlace otra vez: **400** `invalid_token` (sirve una sola vez).
+
+**Cambiar** (con sesión):
+
+1. En /docs, pulsa **Authorize** arriba a la derecha y pega tu
+   `access_token`.
+2. `POST /api/v1/auth/password/change` con
+   `{"current_password": "...", "new_password": "..."}`: **204**, y se cierran
+   todas tus sesiones, también la actual.
+3. Con la contraseña actual incorrecta: **422** `current_password_incorrect`,
+   y no se cierra nada.
+
 ## Ver las tablas con DBeaver
 
 Con Docker levantado (`db` en **healthy**):
