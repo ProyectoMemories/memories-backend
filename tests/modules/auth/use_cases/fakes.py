@@ -46,6 +46,9 @@ class InMemoryUserGateway:
         user = self.users.get(user_id)
         return copy.deepcopy(user) if user else None
 
+    def get_for_update(self, user_id: uuid.UUID) -> User | None:
+        return self.get(user_id)
+
     def get_by_email(self, email: str) -> User | None:
         return self._find(lambda user: user.email.lower() == email.lower())
 

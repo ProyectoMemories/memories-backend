@@ -43,7 +43,7 @@ class ChangePassword:
 
     def execute(self, data: ChangePasswordInput) -> None:
         """Guarda la nueva y cierra todas las sesiones, también la actual."""
-        user = self._users.get(data.user_id)
+        user = self._users.get_for_update(data.user_id)
         if user is None:
             raise NotAuthenticatedError
         valid, _ = self._hasher.verify_and_update(

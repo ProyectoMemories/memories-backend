@@ -1,7 +1,7 @@
 """SqlUserGateway contra PostgreSQL real."""
 
 from collections.abc import Iterator
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import create_engine
@@ -75,19 +75,25 @@ def test_save_guarda_solo_lo_que_cambia_el_negocio(session: Session) -> None:
     assert (saved.status, saved.email_verified_at) == (AccountStatus.ACTIVE, NOW)
 
 
-def test_save_guarda_el_cambio_de_contrasena(session: Session) -> None:
+def test_save_guarda_el_cambio_de_contrasena_al_microsegundo(session: Session) -> None:
+    """El enlace de un solo uso compara esta fecha exacta (RN-19)."""
     gateway = SqlUserGateway(session)
     user = _user()
     _add(gateway, user)
+    lima = timezone(timedelta(hours=-5))
+    changed_at = datetime(2026, 11, 19, 7, 0, 0, 123456, tzinfo=lima)
 
-    user.change_password("hash-nuevo", NOW)
+    user.change_password("hash-nuevo", changed_at)
     gateway.save(user)
     session.flush()
     session.expire_all()
 
-    saved = gateway.get(user.id)
+    saved = gateway.get_for_update(user.id)
     assert saved is not None
-    assert (saved.password_hash, saved.password_changed_at) == ("hash-nuevo", NOW)
+    assert (saved.password_hash, saved.password_changed_at) == (
+        "hash-nuevo",
+        changed_at,
+    )
 
 
 @pytest.mark.parametrize(

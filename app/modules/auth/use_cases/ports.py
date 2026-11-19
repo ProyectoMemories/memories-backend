@@ -32,6 +32,10 @@ class TokenInvalidError(Exception):
 class UserGateway(Protocol):
     def get(self, user_id: uuid.UUID) -> User | None: ...
 
+    def get_for_update(self, user_id: uuid.UUID) -> User | None:
+        """Bloquea la cuenta: dos cambios de contraseña a la vez van de a uno."""
+        ...
+
     def get_by_email(self, email: str) -> User | None: ...
 
     def get_by_login(self, identifier: str) -> User | None:

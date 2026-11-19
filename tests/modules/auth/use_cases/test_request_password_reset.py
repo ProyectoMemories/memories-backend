@@ -20,7 +20,12 @@ def test_envia_el_enlace_a_la_app_web(kit: AuthKit) -> None:
 
 @pytest.mark.parametrize(
     "status",
-    [AccountStatus.ACTIVE, AccountStatus.UNVERIFIED, AccountStatus.DEACTIVATED],
+    [
+        AccountStatus.ACTIVE,
+        AccountStatus.UNVERIFIED,
+        AccountStatus.DEACTIVATED,
+        AccountStatus.PENDING_DELETION,
+    ],
 )
 def test_cuentas_que_pueden_recuperarse(kit: AuthKit, status: AccountStatus) -> None:
     kit.add_user(status)

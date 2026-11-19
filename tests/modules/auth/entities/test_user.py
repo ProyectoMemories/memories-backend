@@ -117,6 +117,7 @@ def test_rehacer_el_hash_no_cuenta_como_cambio() -> None:
         (AccountStatus.ACTIVE, True),
         (AccountStatus.UNVERIFIED, True),
         (AccountStatus.DEACTIVATED, True),
+        (AccountStatus.PENDING_DELETION, True),
         (AccountStatus.SUSPENDED, False),
     ],
 )

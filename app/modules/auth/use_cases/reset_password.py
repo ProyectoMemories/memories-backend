@@ -61,7 +61,9 @@ class ResetPassword:
         except TokenInvalidError as error:
             raise InvalidLinkError from error
 
-        user = self._users.get(user_id)
+        # FOR UPDATE: dos usos simultáneos del mismo enlace van de a uno, y el
+        # segundo ya ve la fecha nueva.
+        user = self._users.get_for_update(user_id)
         # Si la contraseña cambió después de pedir el enlace (incluso con este
         # mismo enlace), la fecha ya no coincide: es un enlace usado (RN-19).
         if user is None or user.password_changed_at != password_changed_at:
