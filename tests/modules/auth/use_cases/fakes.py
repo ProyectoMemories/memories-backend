@@ -2,6 +2,7 @@
 
 import copy
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from app.modules.auth.entities.errors import EmailTakenError, UsernameTakenError
@@ -65,7 +66,7 @@ class InMemoryUserGateway:
     def save(self, user: User) -> None:
         self.users[user.id] = copy.deepcopy(user)
 
-    def _find(self, matches) -> User | None:  # type: ignore[no-untyped-def]
+    def _find(self, matches: Callable[[User], bool]) -> User | None:
         found = next((user for user in self.users.values() if matches(user)), None)
         return copy.deepcopy(found) if found else None
 

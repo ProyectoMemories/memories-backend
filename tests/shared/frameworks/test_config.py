@@ -30,7 +30,8 @@ def test_rechaza_origenes_invalidos(origin: str) -> None:
 
 def test_rechaza_entorno_desconocido() -> None:
     with pytest.raises(ValidationError):
-        Settings(app_env="staging", web_app_origin=WEB_APP_ORIGIN, **_REQUIRED)  # type: ignore[arg-type]  # inválido a propósito
+        # "staging" no es un entorno válido: la prueba lo pasa a propósito.
+        Settings(app_env="staging", web_app_origin=WEB_APP_ORIGIN, **_REQUIRED)  # type: ignore[arg-type]
 
 
 def test_rechaza_url_de_base_sin_psycopg() -> None:
