@@ -8,12 +8,13 @@ configuración. Uvicorn la llama con `--factory`.
 from collections.abc import Iterator
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.modules.auth.adapters.controllers.router import router as auth_router
 from app.modules.auth.frameworks.composition import AuthModule
+from app.shared.adapters.deferred_email_sender import DeferredEmailSender
 from app.shared.adapters.error_presenter import register_error_handlers
 from app.shared.adapters.rate_limit import RateLimiter
 from app.shared.adapters.smtp_email_sender import SmtpEmailSender
@@ -26,14 +27,20 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
 
 
-def open_request_scope(request: Request) -> Iterator[None]:
+def open_request_scope(
+    request: Request, background_tasks: BackgroundTasks
+) -> Iterator[None]:
     """Una sesión de base por petición y los interactores que la usan.
 
-    Lo que no se confirmó con commit se descarta al cerrar la sesión.
+    Lo que no se confirmó con commit se descarta al cerrar la sesión. Los
+    correos diferidos se envían cuando la respuesta ya salió (D74); si no hay
+    ninguno, `flush` no hace nada.
     """
     state = request.app.state
+    deferred_email = DeferredEmailSender(state.email_sender)
+    background_tasks.add_task(deferred_email.flush)
     with state.sessionmaker() as session:
-        request.state.auth = state.auth_module.use_cases(session)
+        request.state.auth = state.auth_module.use_cases(session, deferred_email)
         yield
 
 
@@ -48,11 +55,14 @@ def create_app(
     app = FastAPI(
         title="Memories API",
         version="0.1.0",
-        dependencies=[Depends(open_request_scope)],
+        # scope="function": la sesión se cierra antes de enviar la respuesta,
+        # así un SMTP lento en segundo plano no retiene una conexión (D74).
+        dependencies=[Depends(open_request_scope, scope="function")],
     )
     app.state.settings = settings
     app.state.sessionmaker = create_sessionmaker(settings.database_url)
     app.state.rate_limiter = RateLimiter()
+    app.state.email_sender = email_sender
     app.state.auth_module = AuthModule(settings, email_sender)
 
     _add_cors(app, settings)
