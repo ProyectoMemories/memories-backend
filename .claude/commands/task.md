@@ -1,20 +1,17 @@
 ---
-description: Implementa la siguiente tarea pendiente de specs/<feature>/tasks.md con su test
+description: Ejecuta en bucle todas las tareas pendientes de specs/<feature>/tasks.md y abre el PR
 argument-hint: <feature>
 ---
 Feature: **$ARGUMENTS**
 
 Fase: Implementación.
 
-1. Comprueba que `specs/$ARGUMENTS/requirements.md` diga `Estado: aprobado`.
-   Si no, **detente** y avisa.
-2. Toma **solo** la primera tarea sin `[x]` de `specs/$ARGUMENTS/tasks.md`.
-3. Si la tarea es grande o toca varios módulos, presenta un plan y espera la
-   aprobación.
-4. Escribe primero el test y luego el código. Si usas una API de una librería
-   que todavía no está en el repo, consúltala con Context7.
-5. Corre las verificaciones de `/check` y corrige hasta que estén en verde.
-6. Si el código se desvió de la spec, actualiza la spec primero y avísalo.
-7. Marca la tarea con `[x]`, explica en 3 a 5 líneas qué cambió y por qué, y
-   propone el mensaje del commit (Conventional Commits, en español).
-   **No hagas commit ni push.**
+1. Comprueba que `specs/$ARGUMENTS/requirements.md` diga `Estado: aprobado`. Si no, detente y avisa.
+2. Lee en Drive las decisiones del 01 que cita la spec. Compara contra el 01, no contra un resumen.
+3. Por cada tarea sin `[x]` de `tasks.md`, en orden:
+   a. Escribe primero el test y luego el código. Consulta con Context7 las APIs que todavía no estén en el repo.
+   b. Corre /check hasta que esté en verde.
+   c. Marca la tarea con `[x]` y haz un commit (Conventional Commits, en español).
+4. Detente y pregunta solo si: /check sigue en rojo después de 3 intentos, la tarea necesita una decisión que no está en el 01 o la spec, o el código tiene que desviarse de la spec. Cuando el equipo responda, actualiza la spec antes de seguir.
+5. Al terminar todas las tareas, corre el subagente reviewer y corrige los bloqueantes.
+6. Haz push de la rama y abre el PR con gh. En la descripción: qué cambió y por qué, en 3 a 5 líneas por tarea, y lo que dijo el reviewer. No lo fusiones.
