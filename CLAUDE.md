@@ -22,7 +22,7 @@ solo hay README técnico, este CLAUDE.md y `specs/`.
 | Decisiones del equipo (D1, D2…) | Context Proyecto para Claude / 01-decisiones |
 | Arquitectura | Context Proyecto para Claude / 04-arquitectura |
 | Reglas de negocio (RN-xx) | Context Proyecto para Claude / 05-reglas-de-negocio |
-| Reglas del asistente (rol, marcas, fases) | Context Proyecto para Claude / 00-instrucciones-asistente |
+| Referencia histórica de las reglas del asistente (D76) | Context Proyecto para Claude / 00-instrucciones-asistente |
 | Qué Skill usar en cada tarea | Context Proyecto para Claude / 03-manual-skills |
 | Requisitos (RF-xx, RNF-xx) | Lista de requisitos |
 | Modelo físico vigente | memories-physical-v1.5.sql |
@@ -172,7 +172,7 @@ app/
 Nivel **spec-anchored** (D66): la spec se mantiene al día durante todo el
 proyecto y es el contrato contra el que se compara el código. Ciclo:
 Specify (`requirements.md`: **qué**, no cómo) → Plan (`design.md`) → Tasks
-(`tasks.md`) → Implement (una tarea). Comandos: `/spec <feature>` y
+(`tasks.md`) → Implement (/task, en bucle). Comandos: `/spec <feature>` y
 `/task <feature>`.
 
 1. **Sin spec no hay código.** Antes de implementar, comprueba que existe
@@ -348,7 +348,7 @@ funciona pero que nadie del equipo puede explicar).
   FastAPI, SQLAlchemy, Alembic, Pydantic, pwdlib o pytest que todavía no esté en el repo, consúltala con Context7 en la
   versión fijada en `requirements.txt`. No escribas de memoria APIs que pudieron
   cambiar.
-- **Higiene del contexto.** Un feature por sesión. `/clear` al cambiar de tarea
+- **Higiene del contexto.** Un feature por sesión. `/clear` al cambiar de feature
   y `/compact` si la sesión se alarga. El avance vive en `tasks.md`, no en el
   chat.
 - **Subagente `reviewer`.** Antes de abrir un PR, pídele que revise la rama:
