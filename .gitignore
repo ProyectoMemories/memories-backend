@@ -4,6 +4,11 @@
 CLAUDE.local.md
 .claude/settings.local.json
 
+# Configuración de otros agentes (D76)
+AGENTS.md
+.codex/
+.agents/
+
 # Python
 __pycache__/
 *.py[cod]
