@@ -93,7 +93,7 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
       con Redis inalcanzable cuenta en memoria y registra el aviso
 - [x] `REDIS_URL` en la configuración y elección en `create_app` · tests: con
       URL usa Redis, sin URL usa memoria
-- [ ] Servicio `redis` en Docker Compose y el CI, `.env.example`, README y
+- [x] Servicio `redis` en Docker Compose y el CI, `.env.example`, README y
       CLAUDE.md · test: el CI levanta Redis y la API sana con él
 
 ## Correcciones
