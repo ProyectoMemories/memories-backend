@@ -82,6 +82,20 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
       tests: la respuesta HTTP sale antes que el correo en `forgot` y
       `resend`; con el SMTP caído siguen respondiendo 202
 
+## Límite de intentos en Redis (D77)
+
+- [ ] Contrato `RateLimit` y `InMemoryRateLimiter` (renombre, mismo
+      comportamiento) · tests: los de siempre; una `X-Forwarded-For` inventada
+      no cambia la IP con que se cuenta
+- [ ] `RedisRateLimiter` con transacción `INCR`/`EXPIRE NX`/`TTL` y vuelta a
+      memoria · tests contra Redis real: sexto intento rechazado con espera
+      entre 1 y 60 s; claves separadas; la clave siempre tiene vencimiento;
+      con Redis inalcanzable cuenta en memoria y registra el aviso
+- [ ] `REDIS_URL` en la configuración y elección en `create_app` · tests: con
+      URL usa Redis, sin URL usa memoria
+- [ ] Servicio `redis` en Docker Compose y el CI, `.env.example`, README y
+      CLAUDE.md · test: el CI levanta Redis y la API sana con él
+
 ## Correcciones
 
 - [x] El token de acceso deja de servir al cerrar la sesión (se revisa la

@@ -4,8 +4,8 @@
 - Requisitos: RF-01, RF-03, RF-05, RF-23, RF-24 (Lista de requisitos)
 - Reglas vigentes: RN-06, RN-07, RN-08, RN-09, RN-10, RN-11, RN-12, RN-14,
   RN-17, RN-19, RN-50, RN-51, RN-67, RN-68 (05-reglas-de-negocio)
-- Decisiones: D22, D28, D41, D56, D60, D62, D65, D70, D71, D72, D73, D74
-  (01-decisiones)
+- Decisiones: D22, D28, D41, D56, D60, D62, D65, D70, D71, D72, D73, D74,
+  D77 (01-decisiones)
 - Estado: **aprobado**
 
 Fuera de este spec (van en `specs/users/`): ver y editar el perfil (RF-04),
@@ -144,3 +144,14 @@ sesión.
 - **Dado** que cambié la contraseña, **cuando** uso el token de acceso o el de
   renovación que tenía antes, **entonces** se rechazan (RN-67).
 
+
+## Límite de intentos en todos los endpoints de auth (D62-F, D70, D77)
+
+- **Dado** que la API corre en varios procesos o servidores, **cuando** desde
+  una IP llegan 6 intentos en un minuto repartidos entre ellos, **entonces** el
+  sexto se rechaza igual: el conteo es uno solo para todos (Redis).
+- **Dado** que Redis no responde, **cuando** llega un intento, **entonces** la
+  API sigue respondiendo y el límite se cuenta en la memoria del proceso.
+- **Dado** que alguien manda una cabecera `X-Forwarded-For` inventada,
+  **cuando** cambia su valor en cada intento, **entonces** igual se le cuenta
+  por su IP real y el sexto se rechaza.

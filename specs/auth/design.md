@@ -202,7 +202,25 @@ app/modules/auth/
 - **Límite de intentos (D62-F, D70):** 5 por minuto por IP en `login`,
   `password/forgot`, `verify-email/resend`, `register` (cada registro envía un
   correo y sin límite serviría para mandar correos en masa) y
-  `password/change`, guardado en memoria del proceso.
+  `password/change`.
+- **Dónde se cuenta (D77):** en Redis cuando hay `REDIS_URL`, para que todos
+  los procesos y servidores compartan el conteo.
+  - `RedisRateLimiter` (`shared/adapters/redis_rate_limiter.py`) cumple el
+    mismo contrato `RateLimit` que el contador en memoria: ningún controller ni
+    caso de uso cambia.
+  - Ventana fija de 60 s: `INCR`, `EXPIRE … NX` y `TTL` van en una sola
+    transacción (`MULTI`), así una clave nunca queda sin vencimiento. Si se pasó
+    el límite, `Retry-After` es el `TTL` que queda.
+  - Claves `memories:ratelimit:<acción>:<ip>`, por si la instancia de Redis se
+    comparte con otro proyecto.
+  - Si Redis no responde (timeouts cortos, 0,5 s), se registra un aviso y se
+    cuenta en memoria (`InMemoryRateLimiter`): nunca se quita el límite.
+  - Sin `REDIS_URL` (pruebas, API sin Docker) se usa solo el contador en memoria.
+  - La IP es `request.client.host`. `X-Forwarded-For` no se lee: detrás de un
+    proxy, uvicorn la toma solo de proxies de confianza (`--forwarded-allow-ips`,
+    se define al desplegar).
+  - Redis solo guarda estos contadores: sin persistencia en disco. Las sesiones
+    siguen en PostgreSQL (D56).
 - **Correos (D62-C):** los casos de uso usan el puerto `EmailSender`. En desarrollo
   se envía por SMTP a **Mailpit** (en Docker Compose), que captura los correos
   y los muestra en su web; en los tests, un enviador falso. El proveedor real
@@ -230,9 +248,13 @@ app/modules/auth/
   exista o no la cuenta. La única excepción es "verifica tu correo", que solo
   aparece con la contraseña correcta (D62-E). El registro sí revela que un
   correo o usuario ya existe: es inevitable para que la persona elija otro.
-- **Límite de intentos en memoria:** cada proceso cuenta por separado y se
-  pierde al reiniciar. Alcanza para un solo proceso en el MVP; si la API corre
-  con varios procesos, el límite real se multiplica.
+- **Límite de intentos con Redis caído:** se vuelve al contador en memoria, que
+  cuenta por proceso; mientras dure la caída, con varios procesos el límite real
+  se multiplica. Riesgo aceptado (D77): es mejor que quitar el límite o que
+  rechazar todo.
+- **Ventana fija:** quien reparte intentos justo antes y después del cambio de
+  minuto puede hacer hasta 10 en pocos segundos. Aceptado: sigue frenando la
+  fuerza bruta (el contador en memoria usa ventana deslizante).
 - **Tiempo de respuesta en `password/forgot` y `verify-email/resend`:** el
   cuerpo y el código son idénticos exista o no la cuenta, pero si existe se
   enviaba el correo dentro de la petición y la respuesta tardaba más, lo que
