@@ -16,7 +16,8 @@ from app.modules.auth.adapters.controllers.router import router as auth_router
 from app.modules.auth.frameworks.composition import AuthModule
 from app.shared.adapters.deferred_email_sender import DeferredEmailSender
 from app.shared.adapters.error_presenter import register_error_handlers
-from app.shared.adapters.rate_limit import InMemoryRateLimiter
+from app.shared.adapters.rate_limit import InMemoryRateLimiter, RateLimit
+from app.shared.adapters.redis_rate_limiter import RedisRateLimiter, connect_redis
 from app.shared.adapters.smtp_email_sender import SmtpEmailSender
 from app.shared.frameworks.config import Settings, get_settings
 from app.shared.frameworks.database import create_sessionmaker
@@ -61,7 +62,7 @@ def create_app(
     )
     app.state.settings = settings
     app.state.sessionmaker = create_sessionmaker(settings.database_url)
-    app.state.rate_limiter = InMemoryRateLimiter()
+    app.state.rate_limiter = _build_rate_limiter(settings)
     app.state.email_sender = email_sender
     app.state.auth_module = AuthModule(settings, email_sender)
 
@@ -70,6 +71,14 @@ def create_app(
     _add_health(app)
     app.include_router(auth_router)
     return app
+
+
+def _build_rate_limiter(settings: Settings) -> RateLimit:
+    """Redis si hay REDIS_URL (conteo común a todos los procesos, D77)."""
+    in_memory = InMemoryRateLimiter()
+    if settings.redis_url is None:
+        return in_memory
+    return RedisRateLimiter(connect_redis(settings.redis_url), fallback=in_memory)
 
 
 def _add_cors(app: FastAPI, settings: Settings) -> None:

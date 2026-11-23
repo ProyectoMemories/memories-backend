@@ -44,6 +44,11 @@ class Settings(DatabaseSettings):
     smtp_port: int = 1025
     email_from: str = "Memories <no-reply@memories.local>"
 
+    # Redis del límite de intentos, compartido por todos los procesos (D77).
+    # Formato: redis://:clave@host:puerto/0. Sin ella (pruebas, API sin Docker)
+    # se cuenta en la memoria del proceso.
+    redis_url: str | None = None
+
     @field_validator("web_app_origin")
     @classmethod
     def _single_explicit_origin(cls, value: str) -> str:
