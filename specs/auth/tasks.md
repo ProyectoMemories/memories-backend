@@ -87,7 +87,7 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
 - [x] Contrato `RateLimit` y `InMemoryRateLimiter` (renombre, mismo
       comportamiento) · tests: los de siempre; una `X-Forwarded-For` inventada
       no cambia la IP con que se cuenta
-- [ ] `RedisRateLimiter` con transacción `INCR`/`EXPIRE NX`/`TTL` y vuelta a
+- [x] `RedisRateLimiter` con transacción `INCR`/`EXPIRE NX`/`TTL` y vuelta a
       memoria · tests contra Redis real: sexto intento rechazado con espera
       entre 1 y 60 s; claves separadas; la clave siempre tiene vencimiento;
       con Redis inalcanzable cuenta en memoria y registra el aviso

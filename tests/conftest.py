@@ -6,6 +6,7 @@ from pathlib import Path
 
 import psycopg
 import pytest
+import redis
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
@@ -71,6 +72,7 @@ class _TestDatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     test_database_url: str | None = None
+    test_redis_url: str | None = None
 
 
 def _alembic_config(url: str) -> Config:
@@ -154,3 +156,29 @@ def db_client(
     app.state.sessionmaker.kw["bind"].dispose()
     with psycopg.connect(migrated_db, autocommit=True) as connection:
         connection.execute("TRUNCATE app_user CASCADE")
+
+
+# ─── Redis de pruebas (D77) ────────────────────────────────────────────────
+# Las pruebas usan claves propias y nunca vacían la base: se puede apuntar al
+# mismo Redis de desarrollo.
+
+
+@pytest.fixture(scope="session")
+def redis_client() -> Iterator[redis.Redis]:
+    url = _TestDatabaseSettings().test_redis_url
+    if not url:
+        if os.environ.get("CI"):
+            pytest.fail("En el CI falta TEST_REDIS_URL")
+        pytest.skip(
+            "Falta TEST_REDIS_URL en tu .env. Levanta Redis con "
+            "`docker compose up -d redis` (ver README)."
+        )
+    client = redis.Redis.from_url(url)
+    try:
+        client.ping()
+    except redis.RedisError as error:
+        if os.environ.get("CI"):
+            raise
+        pytest.skip(f"No se pudo conectar a Redis: {error}")
+    yield client
+    client.close()
