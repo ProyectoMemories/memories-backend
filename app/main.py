@@ -16,7 +16,7 @@ from app.modules.auth.adapters.controllers.router import router as auth_router
 from app.modules.auth.frameworks.composition import AuthModule
 from app.shared.adapters.deferred_email_sender import DeferredEmailSender
 from app.shared.adapters.error_presenter import register_error_handlers
-from app.shared.adapters.rate_limit import RateLimiter
+from app.shared.adapters.rate_limit import InMemoryRateLimiter
 from app.shared.adapters.smtp_email_sender import SmtpEmailSender
 from app.shared.frameworks.config import Settings, get_settings
 from app.shared.frameworks.database import create_sessionmaker
@@ -61,7 +61,7 @@ def create_app(
     )
     app.state.settings = settings
     app.state.sessionmaker = create_sessionmaker(settings.database_url)
-    app.state.rate_limiter = RateLimiter()
+    app.state.rate_limiter = InMemoryRateLimiter()
     app.state.email_sender = email_sender
     app.state.auth_module = AuthModule(settings, email_sender)
 

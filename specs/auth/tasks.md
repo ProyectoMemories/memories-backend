@@ -84,7 +84,7 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
 
 ## Límite de intentos en Redis (D77)
 
-- [ ] Contrato `RateLimit` y `InMemoryRateLimiter` (renombre, mismo
+- [x] Contrato `RateLimit` y `InMemoryRateLimiter` (renombre, mismo
       comportamiento) · tests: los de siempre; una `X-Forwarded-For` inventada
       no cambia la IP con que se cuenta
 - [ ] `RedisRateLimiter` con transacción `INCR`/`EXPIRE NX`/`TTL` y vuelta a
