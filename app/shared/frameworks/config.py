@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,8 +46,9 @@ class Settings(DatabaseSettings):
 
     # Redis del límite de intentos, compartido por todos los procesos (D77).
     # Formato: redis://:clave@host:puerto/0. Sin ella (pruebas, API sin Docker)
-    # se cuenta en la memoria del proceso.
-    redis_url: str | None = None
+    # se cuenta en la memoria del proceso. SecretStr: lleva la contraseña y no
+    # debe salir si alguien imprime la configuración.
+    redis_url: SecretStr | None = None
 
     @field_validator("web_app_origin")
     @classmethod

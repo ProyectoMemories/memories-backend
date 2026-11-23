@@ -121,7 +121,7 @@ jobs:
       - name: Comprobar Mailpit
         run: curl -fsS http://127.0.0.1:8025/api/v1/info
       - name: Comprobar Redis (con contraseña)
-        run: docker compose exec -T redis sh -c 'redis-cli ping' | grep -qx PONG
+        run: docker compose exec -T redis redis-cli ping | grep -qx PONG
       - name: Construir y levantar la API
         # --no-deps: sus dependencias ya están arriba y el bucket ya existe.
         run: docker compose up -d --build --wait --wait-timeout 180 --no-deps api

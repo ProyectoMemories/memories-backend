@@ -34,6 +34,9 @@ def make_settings(database_url: str = DATABASE_URL) -> Settings:
         database_url=database_url,
         secret_key=SECRET_KEY,
         privacy_policy_version=PRIVACY_POLICY_VERSION,
+        # Explícito: si el .env trae REDIS_URL, las pruebas igual cuentan en
+        # memoria y no se pisan entre ellas en el Redis real.
+        redis_url=None,
     )
 
 

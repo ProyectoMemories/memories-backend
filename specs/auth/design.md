@@ -213,12 +213,17 @@ app/modules/auth/
     el límite, `Retry-After` es el `TTL` que queda.
   - Claves `memories:ratelimit:<acción>:<ip>`, por si la instancia de Redis se
     comparte con otro proyecto.
-  - Si Redis no responde (timeouts cortos, 0,5 s), se registra un aviso y se
-    cuenta en memoria (`InMemoryRateLimiter`): nunca se quita el límite.
+  - Si Redis no responde (timeouts de 0,5 s, sin reintentos), se registra un
+    aviso y se cuenta en memoria (`InMemoryRateLimiter`): nunca se quita el
+    límite. Tras ese fallo, durante 30 s no se vuelve a probar Redis: una caída
+    demora como mucho un intento cada 30 s y deja un aviso, no uno por intento.
+  - Requiere Redis 7 o superior (`EXPIRE NX`); la imagen es `redis:8.2-alpine`.
   - Sin `REDIS_URL` (pruebas, API sin Docker) se usa solo el contador en memoria.
   - La IP es `request.client.host`. `X-Forwarded-For` no se lee: detrás de un
     proxy, uvicorn la toma solo de proxies de confianza (`--forwarded-allow-ips`,
-    se define al desplegar).
+    se define al desplegar). Ojo: por defecto uvicorn confía en `127.0.0.1`,
+    así que con la API sin Docker un cliente local puede cambiar su IP; en
+    Docker las peticiones llegan desde la red del contenedor y no aplica.
   - Redis solo guarda estos contadores: sin persistencia en disco. Las sesiones
     siguen en PostgreSQL (D56).
 - **Correos (D62-C):** los casos de uso usan el puerto `EmailSender`. En desarrollo
@@ -250,7 +255,7 @@ app/modules/auth/
   correo o usuario ya existe: es inevitable para que la persona elija otro.
 - **Límite de intentos con Redis caído:** se vuelve al contador en memoria, que
   cuenta por proceso; mientras dure la caída, con varios procesos el límite real
-  se multiplica. Riesgo aceptado (D77): es mejor que quitar el límite o que
+  se multiplica. Cada 30 s un intento espera hasta 0,5 s al volver a probar. Riesgo aceptado (D77): es mejor que quitar el límite o que
   rechazar todo.
 - **Ventana fija:** quien reparte intentos justo antes y después del cambio de
   minuto puede hacer hasta 10 en pocos segundos. Aceptado: sigue frenando la

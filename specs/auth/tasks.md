@@ -93,6 +93,11 @@ Cada tarea lleva su test. Se marcan `[x]` al terminar.
       con Redis inalcanzable cuenta en memoria y registra el aviso
 - [x] `REDIS_URL` en la configuración y elección en `create_app` · tests: con
       URL usa Redis, sin URL usa memoria
+- [x] Revisión: las pruebas cuentan en memoria aunque el `.env` traiga
+      `REDIS_URL`; `REDIS_URL` como `SecretStr`; pausa de 30 s tras un fallo de
+      Redis · tests: con `REDIS_URL` en el entorno, `make_settings` usa memoria;
+      un Redis colgado demora menos de 1 s; un aviso por pausa; la clave no
+      sale en el log
 - [x] Servicio `redis` en Docker Compose y el CI, `.env.example`, README y
       CLAUDE.md · test: el CI levanta Redis y la API sana con él
 

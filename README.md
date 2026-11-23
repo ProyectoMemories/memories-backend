@@ -440,8 +440,7 @@ Otro programa ya usa ese puerto en tu PC. Revisa, en este orden:
    `netstat -ano | findstr :5433`. Detén ese servicio o cambia
    `POSTGRES_HOST_PORT` en tu `.env`.
 3. Lo mismo vale para los demás puertos del `.env` (8001, 9010, 9011, 1025,
-   8025, 6380). Redis usa 6380 para no chocar con otro Redis en 6379, por
-   ejemplo el de CRIS.
+   8025, 6380). Redis usa 6380 para no chocar con otro Redis en 6379.
 
 ## API sin Docker (opcional)
 

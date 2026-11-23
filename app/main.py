@@ -78,7 +78,8 @@ def _build_rate_limiter(settings: Settings) -> RateLimit:
     in_memory = InMemoryRateLimiter()
     if settings.redis_url is None:
         return in_memory
-    return RedisRateLimiter(connect_redis(settings.redis_url), fallback=in_memory)
+    client = connect_redis(settings.redis_url.get_secret_value())
+    return RedisRateLimiter(client, fallback=in_memory)
 
 
 def _add_cors(app: FastAPI, settings: Settings) -> None:
