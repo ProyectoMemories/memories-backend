@@ -72,10 +72,12 @@ los tres lo deciden.
 | Sesiones | JWT de acceso de 15 min + token de renovación de 30 días rotado y guardado como hash en `user_session` (D56, RN-67) |
 | Contraseñas | Hash con algoritmo intercambiable (RNF-08) |
 | Fotos | Almacenamiento compatible con S3; MinIO en local, con versión fijada (D46) |
-| Entorno local | Docker Compose: PostgreSQL, API, MinIO y Mailpit para ver los correos (D62) |
+| Entorno local | Docker Compose: PostgreSQL, API, MinIO, Mailpit para ver los correos (D62) y Redis (D77) |
+| Límite de intentos | Redis compartido por todos los procesos, con vuelta a memoria si no responde (D77) |
 | Calidad | pytest, ruff, import-linter (D69), mypy, GitHub Actions (D48) |
 
-**No hay Redis** en este proyecto: las sesiones viven en PostgreSQL (D56).
+**Redis solo cuenta el límite de intentos** (D77). Las sesiones viven en
+PostgreSQL (D56): no se mueven a Redis.
 
 ## 4. Comandos
 
@@ -89,7 +91,7 @@ pytest                                # pruebas
 ```
 
 ```bash
-docker compose up -d --build # API, PostgreSQL 18, MinIO (+ bucket) y Mailpit
+docker compose up -d --build # API, PostgreSQL 18, MinIO (+ bucket), Mailpit y Redis
 docker compose ps            # todos deben estar "healthy"
 docker compose logs -f api   # logs de la API (se recarga sola al guardar)
 docker compose down          # apagar (conserva los datos)
@@ -114,6 +116,8 @@ alembic revision -m "descripcion"               # nueva migración (vacía, a ma
 - Las pruebas de `tests/db/` corren contra PostgreSQL real y usan la base de
   `TEST_DATABASE_URL`, que debe terminar en `_test`. Para comprobar una
   restricción usa `assert_violates(conn, "nombre_de_la_restriccion", sql)`.
+- Las pruebas de Redis usan `TEST_REDIS_URL`, con claves propias: nunca vacían
+  la base de Redis.
 
 No inventes comandos que el repositorio todavía no tiene.
 
@@ -145,7 +149,7 @@ app/
 ├── shared/                   lo común a todos los módulos, con los mismos círculos
 │   ├── entities/             errores base (AppError y categorías), ids UUIDv7, reloj
 │   ├── use_cases/            puertos comunes: EmailSender, UnitOfWork
-│   ├── adapters/             base ORM, SMTP, límite de intentos, errores → HTTP
+│   ├── adapters/             base ORM, SMTP, límite de intentos (memoria y Redis), errores → HTTP
 │   └── frameworks/           configuración (variables de entorno) y motor de base
 └── modules/<modulo>/         auth, users, albums, memories
     ├── entities/             Enterprise Business Rules: entidades y reglas puras

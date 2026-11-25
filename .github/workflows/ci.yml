@@ -61,9 +61,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # Redis real para el límite de intentos (D77). Sin contraseña: solo vive
+      # dentro de esta corrida.
+      redis:
+        image: redis:8.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql+psycopg://memories:memories@localhost:5432/memories
       TEST_DATABASE_URL: postgresql+psycopg://memories:memories@localhost:5432/memories_test
+      TEST_REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -95,7 +107,7 @@ jobs:
       - name: Validar el archivo
         run: docker compose config --quiet
       - name: Levantar los servicios y esperar sus healthchecks
-        run: docker compose up -d --wait --wait-timeout 180 db minio mailpit
+        run: docker compose up -d --wait --wait-timeout 180 db minio mailpit redis
       - name: Crear el bucket (dos veces, para probar que es idempotente)
         run: |
           docker compose run --rm minio-init
@@ -108,6 +120,8 @@ jobs:
         run: docker compose exec -T minio mcli ls local/memories-photos
       - name: Comprobar Mailpit
         run: curl -fsS http://127.0.0.1:8025/api/v1/info
+      - name: Comprobar Redis (con contraseña)
+        run: docker compose exec -T redis redis-cli ping | grep -qx PONG
       - name: Construir y levantar la API
         # --no-deps: sus dependencias ya están arriba y el bucket ya existe.
         run: docker compose up -d --build --wait --wait-timeout 180 --no-deps api
@@ -147,6 +161,10 @@ jobs:
             -d '{"identifier": "ci.prueba", "password": "caballo bateria grapa",
                  "platform": "android"}' | tee login.json
           grep -q '"refresh_token"' login.json
+          # El límite de intentos contó en Redis (D77), no en la memoria de la API.
+          docker compose exec -T redis redis-cli --scan --pattern 'memories:ratelimit:*' | tee keys.txt
+          grep -q 'memories:ratelimit:register:' keys.txt
+          grep -q 'memories:ratelimit:login:' keys.txt
       - name: Logs si algo falló
         if: failure()
         run: docker compose logs

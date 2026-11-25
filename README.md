@@ -1,7 +1,7 @@
 # Memories — Backend
 
-API de Memories: FastAPI + Python 3.12, PostgreSQL 18 y almacenamiento
-compatible con S3 (MinIO en local).
+API de Memories: FastAPI + Python 3.12, PostgreSQL 18, almacenamiento
+compatible con S3 (MinIO en local) y Redis para el límite de intentos.
 
 Producto, decisiones, reglas de negocio, requisitos y arquitectura viven en
 Google Drive, carpeta "Proyecto Recuerdos". Aquí solo va lo necesario para
@@ -19,7 +19,7 @@ El código anterior, escrito con el PRD v3.0, se conserva en el tag
 ## Puesta en marcha paso a paso (Windows)
 
 Sigue estos pasos en orden la primera vez. Al terminar tendrás la API, la base
-de datos con todas sus tablas, MinIO y Mailpit corriendo en tu PC, y las pruebas
+de datos con todas sus tablas, MinIO, Mailpit y Redis corriendo en tu PC, y las pruebas
 en verde. Los comandos son para **PowerShell** (por ejemplo, la terminal de
 VS Code) y se ejecutan **desde la carpeta del repositorio**.
 
@@ -28,7 +28,7 @@ VS Code) y se ejecutan **desde la carpeta del repositorio**.
 | Herramienta | Para qué | Cómo comprobarlo |
 |---|---|---|
 | [Python 3.12](https://www.python.org/downloads/) | Pruebas y lint | `py -3.12 --version` |
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) (con WSL 2) | API, base de datos, MinIO y Mailpit | `docker --version` y Docker Desktop abierto |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) (con WSL 2) | API, base de datos, MinIO, Mailpit y Redis | `docker --version` y Docker Desktop abierto |
 | [GitHub Desktop](https://desktop.github.com/) o Git | Bajar el código | — |
 
 Al instalar Python, marca **"Add python.exe to PATH"**.
@@ -112,6 +112,17 @@ SMTP_HOST=127.0.0.1
 Para revisarlo: `Select-String "localhost" .env`. Esas tres líneas no deben
 salir. En DBeaver, el Host también es `127.0.0.1`.
 
+**Si tu `.env` es de antes del PR de Redis (D77)**, agrégale estas líneas
+(están al final de `.env.example`). Sin `REDIS_PASSWORD`, `docker compose up`
+avisa que falta:
+
+```
+REDIS_PASSWORD=cambiame123
+REDIS_HOST_PORT=6380
+REDIS_URL=redis://:cambiame123@127.0.0.1:6380/0
+TEST_REDIS_URL=redis://:cambiame123@127.0.0.1:6380/0
+```
+
 `SECRET_KEY` firma los tokens de sesión y de los correos. El valor de ejemplo
 sirve en tu PC; si quieres una propia:
 `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
@@ -126,7 +137,7 @@ docker compose ps -a
 ```
 
 La primera vez tarda unos minutos porque descarga las imágenes. Debes ver
-`api`, `db`, `minio` y `mailpit` en **healthy**, y `minio-init` en
+`api`, `db`, `minio`, `mailpit` y `redis` en **healthy**, y `minio-init` en
 **Exited (0)** (creó el bucket de fotos y terminó). Si algo falla, revisa
 [Si falla con "ports are not available"](#si-falla-con-ports-are-not-available).
 
@@ -157,8 +168,8 @@ tipos (por ejemplo, que cada adaptador cumpla su puerto): debe decir
 `Success: no issues found`.
 
 Debes ver `All checks passed!`, los archivos ya formateados y todas las
-pruebas en verde, **ninguna `skipped`**. Si salen `skipped`, la base no está
-levantada o falta `TEST_DATABASE_URL` en tu `.env`.
+pruebas en verde, **ninguna `skipped`**. Si salen `skipped`, la base o Redis no
+están levantados, o falta `TEST_DATABASE_URL` o `TEST_REDIS_URL` en tu `.env`.
 
 ### 9. Comprueba en el navegador
 
@@ -168,6 +179,7 @@ levantada o falta `TEST_DATABASE_URL` en tu `.env`.
 | Documentación de la API | http://localhost:8001/docs | La documentación interactiva |
 | MinIO | http://localhost:9011 | Entra con `MINIO_ROOT_USER` y `MINIO_ROOT_PASSWORD` del `.env`; debe estar el bucket `memories-photos` |
 | Mailpit | http://localhost:8025 | La bandeja de correos que envía la API |
+| Redis | `docker compose exec redis redis-cli ping` | `PONG` |
 
 Listo: estás al día. Para probar el registro, sigue
 [Probar la API desde /docs](#probar-la-api-desde-docs). Para apagar todo,
@@ -378,13 +390,13 @@ PostgreSQL 18.
 
 ## Entorno local (Docker)
 
-Levanta la API, PostgreSQL 18, MinIO (con el bucket de fotos ya creado) y
-Mailpit.
+Levanta la API, PostgreSQL 18, MinIO (con el bucket de fotos ya creado),
+Mailpit y Redis.
 
 ```powershell
 copy .env.example .env      # la primera vez; luego cambia las contraseñas
 docker compose up -d --build
-docker compose ps           # api, db, minio y mailpit deben decir "healthy"
+docker compose ps           # api, db, minio, mailpit y redis deben decir "healthy"
 ```
 
 | Servicio | Dónde |
@@ -394,6 +406,7 @@ docker compose ps           # api, db, minio y mailpit deben decir "healthy"
 | Consola de MinIO | http://localhost:9011 |
 | API S3 de MinIO | http://localhost:9010 |
 | Mailpit (correos) | http://localhost:8025 · SMTP en `127.0.0.1:1025` |
+| Redis (límite de intentos) | `127.0.0.1:6380` · clave `REDIS_PASSWORD` del `.env` |
 
 - Ver los logs: `docker compose logs -f`
 - Apagar: `docker compose down` (los datos se conservan)
@@ -427,7 +440,7 @@ Otro programa ya usa ese puerto en tu PC. Revisa, en este orden:
    `netstat -ano | findstr :5433`. Detén ese servicio o cambia
    `POSTGRES_HOST_PORT` en tu `.env`.
 3. Lo mismo vale para los demás puertos del `.env` (8001, 9010, 9011, 1025,
-   8025).
+   8025, 6380). Redis usa 6380 para no chocar con otro Redis en 6379.
 
 ## API sin Docker (opcional)
 
