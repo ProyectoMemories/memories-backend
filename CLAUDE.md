@@ -26,6 +26,7 @@ solo hay README técnico, este CLAUDE.md y `specs/`.
 | Qué Skill usar en cada tarea | Context Proyecto para Claude / 03-manual-skills |
 | Requisitos (RF-xx, RNF-xx) | Lista de requisitos |
 | Modelo físico vigente | memories-physical-v1.5.sql |
+| Guía del backend (estructura, archivos y cómo probar) | Context Proyecto para Claude / Guía del backend: estructura y pruebas |
 
 - **No copies esos documentos al repositorio.** Un spec cita los IDs (RF-01,
   RN-67, D56) en lugar de repetir su texto.
@@ -35,6 +36,11 @@ solo hay README técnico, este CLAUDE.md y `specs/`.
   seguir.
 - Al empezar cada tarea, lee en Drive las decisiones del 01 que aplican y la
   spec en specs/. Compara contra el 01, no contra un resumen.
+- **Guía del backend:** es la única versión (D14) y la usa todo el equipo para
+  probar. Cuando un PR agregue, quite o cambie archivos, endpoints, servicios,
+  variables de entorno o pasos para probar, actualiza la guía en el mismo PR
+  con el conector de Google Docs y dilo en la descripción del PR. Si no tienes
+  el conector, avisa en el PR qué falta actualizar.
 
 ## 2. Qué es Memories
 
