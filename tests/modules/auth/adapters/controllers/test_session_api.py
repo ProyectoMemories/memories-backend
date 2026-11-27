@@ -269,6 +269,24 @@ def test_sexto_login_en_un_minuto_se_rechaza(
     assert (response.status_code, response.json()["code"]) == (429, "too_many_requests")
 
 
+def test_la_app_web_puede_leer_cuanto_esperar_tras_el_429(
+    api: TestClient, outbox: FakeEmailSender
+) -> None:
+    # Sin Access-Control-Expose-Headers, el navegador esconde Retry-After y la
+    # app web no puede decir cuántos segundos esperar (D70, D77).
+    _create_user(api, outbox)
+    body = {"identifier": "ana.rios", "password": PASSWORD, "platform": "web"}
+    for _ in range(5):
+        api.post(LOGIN, json=body, headers=WEB)
+
+    response = api.post(LOGIN, json=body, headers=WEB)
+
+    assert response.status_code == 429
+    assert int(response.headers["retry-after"]) > 0
+    exposed = response.headers["access-control-expose-headers"].lower()
+    assert "retry-after" in [header.strip() for header in exposed.split(",")]
+
+
 def test_rehace_el_hash_si_usa_parametros_viejos(
     api: TestClient, outbox: FakeEmailSender, migrated_db: str
 ) -> None:
