@@ -284,7 +284,7 @@ def test_la_app_web_puede_leer_cuanto_esperar_tras_el_429(
     assert response.status_code == 429
     assert int(response.headers["retry-after"]) > 0
     exposed = response.headers["access-control-expose-headers"].lower()
-    assert "retry-after" in exposed.split(", ")
+    assert "retry-after" in [header.strip() for header in exposed.split(",")]
 
 
 def test_rehace_el_hash_si_usa_parametros_viejos(
