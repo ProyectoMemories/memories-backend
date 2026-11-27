@@ -111,7 +111,9 @@ firmados** de vida corta (RN-19), igual que en el modelo físico.
 
 - `refresh` y `logout` en web revisan la cabecera `Origin` y la comparan con el
   dominio de la app web (variable de entorno). Si no coincide, se rechaza.
-- CORS solo permite ese dominio, con credenciales. Nunca `*`.
+- CORS solo permite ese dominio, con credenciales. Nunca `*`. Expone
+  `Retry-After` (`Access-Control-Expose-Headers`): sin eso el navegador lo
+  esconde y la app web no puede decir cuántos segundos esperar tras un 429.
 - [PROPUESTA] `SameSite=Strict`: en local la API (`localhost:8001`) y la app
   web (`localhost:3000`) son el mismo sitio (el puerto no cuenta). Si al
   desplegar quedan en sitios distintos, se revisa junto con los dominios.

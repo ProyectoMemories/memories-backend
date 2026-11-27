@@ -91,6 +91,9 @@ def _add_cors(app: FastAPI, settings: Settings) -> None:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
+        # Sin esto el navegador esconde Retry-After y la app web no puede decir
+        # cuántos segundos esperar tras un 429 (D70, D77).
+        expose_headers=["Retry-After"],
     )
 
 
