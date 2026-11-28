@@ -44,6 +44,16 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "users: frameworks → adapters → use_cases → entities"
+type = "layers"
+layers = [
+    "app.modules.users.frameworks",
+    "app.modules.users.adapters",
+    "app.modules.users.use_cases",
+    "app.modules.users.entities",
+]
+
+[[tool.importlinter.contracts]]
 name = "shared: frameworks → adapters → use_cases → entities"
 type = "layers"
 layers = [
@@ -56,37 +66,77 @@ layers = [
 [[tool.importlinter.contracts]]
 name = "Las entidades son Python puro"
 type = "forbidden"
-source_modules = ["app.modules.auth.entities", "app.shared.entities"]
+source_modules = [
+    "app.modules.auth.entities", "app.modules.users.entities", "app.shared.entities",
+]
 forbidden_modules = [
     "fastapi", "starlette", "pydantic", "pydantic_settings", "sqlalchemy",
     "psycopg", "jwt", "pwdlib",
     "app.modules.auth.use_cases", "app.modules.auth.adapters",
     "app.modules.auth.frameworks",
+    "app.modules.users.use_cases", "app.modules.users.adapters",
+    "app.modules.users.frameworks",
     "app.shared.use_cases", "app.shared.adapters", "app.shared.frameworks",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Los casos de uso no saben de HTTP, SQL ni librerías externas"
 type = "forbidden"
-source_modules = ["app.modules.auth.use_cases", "app.shared.use_cases"]
+source_modules = [
+    "app.modules.auth.use_cases", "app.modules.users.use_cases",
+    "app.shared.use_cases",
+]
 forbidden_modules = [
     "fastapi", "starlette", "pydantic", "pydantic_settings", "sqlalchemy",
     "psycopg", "jwt", "pwdlib",
     "app.modules.auth.adapters", "app.modules.auth.frameworks",
+    "app.modules.users.adapters", "app.modules.users.frameworks",
     "app.shared.adapters", "app.shared.frameworks",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Los adaptadores no dependen de frameworks/"
 type = "forbidden"
-source_modules = ["app.modules.auth.adapters", "app.shared.adapters"]
-forbidden_modules = ["app.modules.auth.frameworks", "app.shared.frameworks", "app.main"]
+source_modules = [
+    "app.modules.auth.adapters", "app.modules.users.adapters", "app.shared.adapters",
+]
+forbidden_modules = [
+    "app.modules.auth.frameworks", "app.modules.users.frameworks",
+    "app.shared.frameworks", "app.main",
+]
 
 [[tool.importlinter.contracts]]
 name = "shared/ no depende de ningún módulo"
 type = "forbidden"
 source_modules = ["app.shared"]
 forbidden_modules = ["app.modules"]
+
+# Entre módulos (CLAUDE.md §7, D81): users solo usa de auth la dependencia
+# CurrentUser, y solo desde su router. Todo lo demás de auth está prohibido,
+# también lo que se agregue después. Que CurrentUser, por dentro, use los
+# interactores de auth es asunto de auth: por eso se permiten los imports
+# indirectos. Qué se importa de dependencies.py se revisa en el PR.
+[[tool.importlinter.contracts]]
+name = "users solo usa CurrentUser de auth"
+type = "forbidden"
+source_modules = ["app.modules.users"]
+forbidden_modules = ["app.modules.auth"]
+ignore_imports = [
+    "app.modules.users.adapters.controllers.router -> app.modules.auth.adapters.controllers.dependencies",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Las reglas de users no conocen auth"
+type = "forbidden"
+source_modules = ["app.modules.users.entities", "app.modules.users.use_cases"]
+forbidden_modules = ["app.modules.auth"]
+
+[[tool.importlinter.contracts]]
+name = "auth no depende de users"
+type = "forbidden"
+source_modules = ["app.modules.auth"]
+forbidden_modules = ["app.modules.users"]
 
 # Verificación de tipos: entre otras cosas, comprueba que cada adaptador y cada
 # doble de prueba cumpla su puerto (typing.Protocol), CLAUDE.md §7.
