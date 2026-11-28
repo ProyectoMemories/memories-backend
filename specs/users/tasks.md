@@ -5,7 +5,7 @@ commit.
 
 ## U1 · Ver mi perfil (`GET /api/v1/users/me`)
 
-- [ ] Estructura del módulo `users` y contratos de import-linter (capas, entidades puras, casos de uso sin HTTP ni SQL, frontera con `auth`) · `lint-imports` en verde
+- [x] Estructura del módulo `users` y contratos de import-linter (capas, entidades puras, casos de uso sin HTTP ni SQL, frontera con `auth`) · `lint-imports` en verde
 - [ ] `Profile` (entidad) y `GetMyProfile` con el puerto `ProfileGateway` · tests del interactor con un doble
 - [ ] `ProfileRecord` y `SqlProfileGateway` sobre `app_user` · test contra PostgreSQL
 - [ ] Controller `GET /api/v1/users/me` con `CurrentUser`, presenter y composición en `main.py` · tests de la API, incluido "dos cuentas, cada una ve solo lo suyo"
