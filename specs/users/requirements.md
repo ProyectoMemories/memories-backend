@@ -8,7 +8,7 @@
   (`GET /users/me` se adelanta a F7 del frontend). Ver design §1.
 - Regla por registrar en el 05: la fecha de nacimiento no se cambia después
   del registro (design §1).
-- Estado: **borrador**, para revisar
+- Estado: **aprobada** por Victor el 2026-11-27
 
 Alcance de esta primera entrega: solo **leer el perfil propio**, para que la
 app muestre el nombre en Inicio y en Perfil. Editar el perfil (RF-04),
