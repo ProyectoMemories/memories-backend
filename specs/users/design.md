@@ -77,9 +77,14 @@ app/modules/users/
   petición; `create_app` monta el router de `users`.
 - **import-linter** (`pyproject.toml`): contratos nuevos para `users`, iguales
   a los de `auth` (capas, entidades puras, casos de uso sin HTTP ni SQL,
-  adaptadores sin `frameworks/`), más uno que prohíbe a `users` importar
-  `auth.entities`, `auth.use_cases` salvo `authenticate`, `auth.adapters.gateways`
-  y `auth.frameworks`.
+  adaptadores sin `frameworks/`), y tres de frontera:
+  - "users solo usa CurrentUser de auth": prohíbe todo `app.modules.auth`,
+    salvo un único import permitido, `users.adapters.controllers.router →
+    auth.adapters.controllers.dependencies`. Qué se importa de ahí (solo
+    `CurrentUser`) se revisa en el PR, porque import-linter no ve los nombres.
+  - "Las reglas de users no conocen auth": `users.entities` y
+    `users.use_cases` no importan nada de `auth`, ni siquiera indirectamente.
+  - "auth no depende de users".
 
 ## 4. Pruebas (con `backend-design:testing-with-discernment`)
 
@@ -87,10 +92,13 @@ app/modules/users/
   `ProfileNotFoundError` (de `users/use_cases/errors.py`, código
   `not_authenticated`). No se reutiliza el error de `auth` porque las reglas
   de `users` no importan `auth` (contrato "Las reglas de users no conocen auth").
-- Gateway contra PostgreSQL real (`tests/db/`): lee las columnas del perfil y
+- Gateway contra PostgreSQL real
+  (`tests/modules/users/adapters/gateways/`): lee las columnas del perfil y
   `maternal_surname` vacío como `None`.
 - API (`TestClient`):
   - sin token → 401 `not_authenticated`;
+  - token inválido → 401 `not_authenticated`; token vencido → 401
+    `access_token_expired`;
   - token de una sesión cerrada → 401;
   - con sesión → 200 con los datos propios y sin `birth_date` ni `status`;
   - **dos cuentas: cada una recibe solo lo suyo** (RNF-02, obligatoria).
@@ -102,6 +110,14 @@ app/modules/users/
 - **Dos mapeos de `app_user`** (`auth` y `users`): si cambia una columna del
   perfil, hay que tocar los dos. Es el costo de la frontera; las columnas del
   perfil cambian poco y la `0001` es la fuente de verdad.
+- **Escrituras con los dos mapeos** (llega con "editar perfil"): `Authenticate`
+  deja `UserRecord` cargado en la sesión de la petición y la sesión no expira
+  al confirmar. Reglas para esa entrega:
+  - en `ProfileRecord`, `username` y `email` son de solo lectura: son
+    credenciales y solo las escribe `auth`;
+  - un caso de uso no escribe la misma fila con las dos clases a la vez.
+  Hoy no hay riesgo: `users` solo lee, y las dos clases tienen claves distintas
+  en el identity map, así que el flush no escribe nada de `users`.
 - **Un módulo nuevo sin contratos de import-linter** permitiría saltarse la
   frontera sin que el CI avise: los contratos van en la primera tarea.
 - **Guía del backend en Drive:** se actualiza en el mismo PR (endpoint nuevo y

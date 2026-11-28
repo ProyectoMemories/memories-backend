@@ -112,16 +112,17 @@ source_modules = ["app.shared"]
 forbidden_modules = ["app.modules"]
 
 # Entre módulos (CLAUDE.md §7, D81): users solo usa de auth la dependencia
-# CurrentUser. Que esa dependencia, por dentro, use los interactores de auth es
-# asunto de auth: por eso se permiten los imports indirectos.
+# CurrentUser, y solo desde su router. Todo lo demás de auth está prohibido,
+# también lo que se agregue después. Que CurrentUser, por dentro, use los
+# interactores de auth es asunto de auth: por eso se permiten los imports
+# indirectos. Qué se importa de dependencies.py se revisa en el PR.
 [[tool.importlinter.contracts]]
 name = "users solo usa CurrentUser de auth"
 type = "forbidden"
 source_modules = ["app.modules.users"]
-forbidden_modules = [
-    "app.modules.auth.entities", "app.modules.auth.use_cases",
-    "app.modules.auth.adapters.gateways", "app.modules.auth.adapters.presenters",
-    "app.modules.auth.adapters.services", "app.modules.auth.frameworks",
+forbidden_modules = ["app.modules.auth"]
+ignore_imports = [
+    "app.modules.users.adapters.controllers.router -> app.modules.auth.adapters.controllers.dependencies",
 ]
 allow_indirect_imports = true
 

@@ -1,11 +1,15 @@
 """GET /api/v1/users/me contra PostgreSQL (HU-01, RNF-02)."""
 
 import re
+import uuid
+from datetime import UTC, datetime, timedelta
 
+import jwt
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.conftest import FakeEmailSender
+from app.modules.auth.adapters.services.jwt_tokens import JwtAccessTokens
+from tests.conftest import SECRET_KEY, FakeEmailSender
 
 ME = "/api/v1/users/me"
 PASSWORD = "caballo bateria grapa"
@@ -114,6 +118,25 @@ def test_token_invalido_responde_401(db_client: TestClient, token: str) -> None:
 
     assert response.status_code == 401
     assert response.json()["code"] == "not_authenticated"
+
+
+def test_token_vencido_pide_renovar(
+    db_client: TestClient, outbox: FakeEmailSender
+) -> None:
+    """La app renueva el token solo con access_token_expired (D56)."""
+    tokens = _register_and_log_in(db_client, outbox, "ana.rios", "Ana")
+    claims = jwt.decode(tokens["access_token"], options={"verify_signature": False})
+    expired = JwtAccessTokens(SECRET_KEY).create(
+        uuid.UUID(claims["sub"]),
+        uuid.UUID(claims["sid"]),
+        timedelta(minutes=15),
+        datetime.now(UTC) - timedelta(hours=1),
+    )
+
+    response = db_client.get(ME, headers={"Authorization": f"Bearer {expired}"})
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "access_token_expired"
 
 
 def test_sesion_cerrada_responde_401(
