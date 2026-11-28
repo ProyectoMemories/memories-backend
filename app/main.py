@@ -14,6 +14,8 @@ from pydantic import BaseModel
 
 from app.modules.auth.adapters.controllers.router import router as auth_router
 from app.modules.auth.frameworks.composition import AuthModule
+from app.modules.users.adapters.controllers.router import router as users_router
+from app.modules.users.frameworks.composition import UsersModule
 from app.shared.adapters.deferred_email_sender import DeferredEmailSender
 from app.shared.adapters.error_presenter import register_error_handlers
 from app.shared.adapters.rate_limit import InMemoryRateLimiter, RateLimit
@@ -42,6 +44,7 @@ def open_request_scope(
     background_tasks.add_task(deferred_email.flush)
     with state.sessionmaker() as session:
         request.state.auth = state.auth_module.use_cases(session, deferred_email)
+        request.state.users = state.users_module.use_cases(session)
         yield
 
 
@@ -65,11 +68,13 @@ def create_app(
     app.state.rate_limiter = _build_rate_limiter(settings)
     app.state.email_sender = email_sender
     app.state.auth_module = AuthModule(settings, email_sender)
+    app.state.users_module = UsersModule()
 
     _add_cors(app, settings)
     register_error_handlers(app)
     _add_health(app)
     app.include_router(auth_router)
+    app.include_router(users_router)
     return app
 
 

@@ -53,7 +53,9 @@ app/modules/users/
 │   ├── controllers/
 │   │   ├── dependencies.py        UsersUseCases (Protocol) y UseCases, como en auth
 │   │   └── router.py              GET /api/v1/users/me con CurrentUser de auth
-│   ├── presenters/responses.py    ProfileResponse (Pydantic)
+│   ├── presenters/
+│   │   ├── responses.py           ProfileResponse (Pydantic)
+│   │   └── profile_presenter.py   Profile → ProfileResponse
 │   └── gateways/
 │       ├── orm_models.py          ProfileRecord: solo las columnas del perfil
 │       └── profile_gateway.py     SqlProfileGateway
