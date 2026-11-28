@@ -295,6 +295,17 @@ la app Flutter.
 3. Con la contraseña actual incorrecta: **422** `current_password_incorrect`,
    y no se cierra nada.
 
+### Ver mi perfil
+
+1. Inicia sesión como Android, pulsa **Authorize** y pega tu `access_token`.
+2. `GET /api/v1/users/me`: **200** con `id`, `username`, `email`,
+   `first_name`, `paternal_surname` y `maternal_surname` (`null` si no lo
+   escribiste). No trae la fecha de nacimiento ni el estado de la cuenta.
+3. Pulsa **Authorize** → **Logout** y repite: **401** `not_authenticated`.
+   Lo mismo pasa si cierras la sesión con `POST /api/v1/auth/logout`.
+4. **Dos cuentas:** crea otra, entra con ella y repite. Cada una ve solo sus
+   propios datos: no hay forma de pedir el perfil de otra cuenta.
+
 ## Ver las tablas con DBeaver
 
 Con Docker levantado (`db` en **healthy**):
