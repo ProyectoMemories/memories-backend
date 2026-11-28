@@ -82,7 +82,9 @@ app/modules/users/
 ## 4. Pruebas (con `backend-design:testing-with-discernment`)
 
 - Interactor con un doble del gateway: devuelve el perfil; si no existe,
-  `NotAuthenticatedError`.
+  `ProfileNotFoundError` (de `users/use_cases/errors.py`, código
+  `not_authenticated`). No se reutiliza el error de `auth` porque las reglas
+  de `users` no importan `auth` (contrato "Las reglas de users no conocen auth").
 - Gateway contra PostgreSQL real (`tests/db/`): lee las columnas del perfil y
   `maternal_surname` vacío como `None`.
 - API (`TestClient`):
